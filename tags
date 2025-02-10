@@ -35,76 +35,130 @@
 !_TAG_ROLE_DESCRIPTION!Python!unknown	imported	/imported from the other module/
 !_TAG_ROLE_DESCRIPTION!Python!unknown	indirectlyImported	/classes\/variables\/functions\/modules imported in alternative name/
 Actor	RL/ddpg_agent.py	/^class Actor(nn.Module):$/;"	c
+Actor	experimental/sac.py	/^class Actor(nn.Module):$/;"	c
 DDPG	RL/ddpg_agent.py	/^class DDPG:$/;"	c
+DDPG	experimental/sac.py	/^class DDPG:$/;"	c
 DQNAgent	RL/dqn_agent.py	/^class DQNAgent:$/;"	c
 QNetwork	RL/ddpg_agent.py	/^class QNetwork(nn.Module):$/;"	c
 QNetwork	RL/dqn_agent.py	/^class QNetwork(nn.Module):$/;"	c
+QNetwork	experimental/sac.py	/^class QNetwork(nn.Module):$/;"	c
 ReplayBuffer	RL/ReplayBuffer.py	/^class ReplayBuffer:$/;"	c
+SAC	experimental/sac_modified.py	/^class SAC(RLC):$/;"	c
+SACRBC	experimental/sac_modified.py	/^class SACRBC(SAC):$/;"	c
 _	RL/ddpg_agent.py	/^    state,_ = env.reset()$/;"	v
 _	RL/dqn_agent.py	/^    state, _ = env.reset()$/;"	v
+_	experimental/sac.py	/^    state,_ = env.reset()$/;"	v
 __init__	RL/ReplayBuffer.py	/^    def __init__(self, capacity):$/;"	m	class:ReplayBuffer
 __init__	RL/ddpg_agent.py	/^    def __init__(self, config=None):$/;"	m	class:Actor
 __init__	RL/ddpg_agent.py	/^    def __init__(self, config=None):$/;"	m	class:QNetwork
 __init__	RL/ddpg_agent.py	/^    def __init__(self,config=None):$/;"	m	class:DDPG
 __init__	RL/dqn_agent.py	/^    def __init__(self, config=None):$/;"	m	class:QNetwork
 __init__	RL/dqn_agent.py	/^    def __init__(self, config=None, optimizer=optim.SGD, loss=nn.MSELoss()):$/;"	m	class:DQNAgent
+__init__	experimental/sac.py	/^    def __init__(self, config=None):$/;"	m	class:Actor
+__init__	experimental/sac.py	/^    def __init__(self, config=None):$/;"	m	class:QNetwork
+__init__	experimental/sac.py	/^    def __init__(self,config=None):$/;"	m	class:DDPG
+__init__	experimental/sac_modified.py	/^    def __init__(self, env: CityLearnEnv, constraint_model, **kwargs: Any):$/;"	m	class:SAC
+__init__	experimental/sac_modified.py	/^    def __init__(self, env: CityLearnEnv, rbc: Union[RBC, str] = None, **kwargs: Any):$/;"	m	class:SACRBC
+__set_rbc	experimental/sac_modified.py	/^    def __set_rbc(self, rbc: RBC, **kwargs):$/;"	m	class:SACRBC	file:
 a	RL/dqn_agent.py	/^    a = DQNAgent(conf)$/;"	v
 action	RL/ddpg_agent.py	/^    action = ddpg.select_action(state,10000.1)$/;"	v
 action	RL/dqn_agent.py	/^    action = a.select_action(state)$/;"	v
+action	experimental/sac.py	/^    action = ddpg.select_action(state,True)$/;"	v
 actor	RL/ddpg_agent.py	/^    actor = Actor(conf)$/;"	v
+actor	experimental/sac.py	/^    actor = Actor(conf)$/;"	v
 adam_wrapper	RL/ddpg_agent.py	/^    def adam_wrapper(parameters, lr, config):$/;"	f
 adam_wrapper	RL/dqn_agent.py	/^    def adam_wrapper(parameters, lr, config):$/;"	f
+adam_wrapper	experimental/sac.py	/^    def adam_wrapper(parameters, lr, config):$/;"	f
 add	RL/ReplayBuffer.py	/^    def add(self, experience):$/;"	m	class:ReplayBuffer
 buffer	RL/ddpg_agent.py	/^    buffer = ReplayBuffer(1000)$/;"	v
 buffer	RL/dqn_agent.py	/^    buffer = ReplayBuffer(1000)$/;"	v
+buffer	experimental/sac.py	/^    buffer = ReplayBuffer(1000)$/;"	v
 buffer_size	RL/ReplayBuffer.py	/^    def buffer_size(self):$/;"	m	class:ReplayBuffer
 conf	RL/ddpg_agent.py	/^    conf = { "input": 2,$/;"	v
 conf	RL/dqn_agent.py	/^    conf = { "input": 6,$/;"	v
+conf	experimental/sac.py	/^    conf = { "input": 2,$/;"	v
 critic	RL/ddpg_agent.py	/^    critic = QNetwork(conf)$/;"	v
+critic	experimental/sac.py	/^    critic = QNetwork(conf)$/;"	v
 ddpg	RL/ddpg_agent.py	/^    ddpg = DDPG(conf)$/;"	v
+ddpg	experimental/sac.py	/^    ddpg = DDPG(conf)$/;"	v
 device	RL/ddpg_agent.py	/^device = torch.device("cuda" if torch.cuda.is_available() else "cpu")$/;"	v
 device	RL/dqn_agent.py	/^device = torch.device("cuda" if torch.cuda.is_available() else "cpu")$/;"	v
+device	experimental/sac.py	/^device = torch.device("cuda" if torch.cuda.is_available() else "cpu")$/;"	v
 env	RL/ddpg_agent.py	/^    env = gym.make("MountainCarContinuous-v0")$/;"	v
 env	RL/dqn_agent.py	/^    env = gym.make("Acrobot-v1")$/;"	v
+env	experimental/sac.py	/^    env = gym.make("MountainCarContinuous-v0")$/;"	v
 evaluate_mode	RL/dqn_agent.py	/^    def evaluate_mode(self):$/;"	m	class:DQNAgent
 forward	RL/ddpg_agent.py	/^    def forward(self, data):$/;"	m	class:Actor
 forward	RL/ddpg_agent.py	/^    def forward(self, data):$/;"	m	class:QNetwork
 forward	RL/dqn_agent.py	/^    def forward(self, data):$/;"	m	class:QNetwork
+forward	experimental/sac.py	/^    def forward(self, data):$/;"	m	class:Actor
+forward	experimental/sac.py	/^    def forward(self, data):$/;"	m	class:QNetwork
+get_encoded_observations	experimental/sac_modified.py	/^    def get_encoded_observations(self, index: int, observations: Union[dict, List[Any]]) -> np.n/;"	m	class:SAC	typeref:typename:np.ndarray
+get_exploration_prediction	experimental/sac_modified.py	/^    def get_exploration_prediction(self, observations: List[List[float]]) -> List[List[float]]:$/;"	m	class:SAC	typeref:typename:List[List[float]]
+get_exploration_prediction	experimental/sac_modified.py	/^    def get_exploration_prediction(self, observations: List[float]) -> List[float]:$/;"	m	class:SACRBC	typeref:typename:List[float]
 get_learning_rate	RL/dqn_agent.py	/^    def get_learning_rate(self):$/;"	m	class:DQNAgent
 get_network_weights	RL/dqn_agent.py	/^    def get_network_weights(self):$/;"	m	class:DQNAgent
 get_noise_rate	RL/ddpg_agent.py	/^    def get_noise_rate(self):$/;"	m	class:DDPG
 get_noise_rate	RL/dqn_agent.py	/^    def get_noise_rate(self):$/;"	m	class:DQNAgent
+get_normalized_observations	experimental/sac_modified.py	/^    def get_normalized_observations(self, index: int, observations: List[float]) -> npt.NDArray[/;"	m	class:SAC	typeref:typename:npt.NDArray[np.float64]
+get_normalized_reward	experimental/sac_modified.py	/^    def get_normalized_reward(self, index: int, reward: float) -> float:$/;"	m	class:SAC	typeref:typename:float
+get_post_exploration_prediction	experimental/sac_modified.py	/^    def get_post_exploration_prediction(self, observations: List[List[float]], deterministic: bo/;"	m	class:SAC	typeref:typename:List[List[float]]
 gym	RL/ddpg_agent.py	/^    import gymnasium as gym$/;"	I	nameref:module:gymnasium
 gym	RL/dqn_agent.py	/^    import gymnasium as gym$/;"	I	nameref:module:gymnasium
+gym	experimental/sac.py	/^    import gymnasium as gym$/;"	I	nameref:module:gymnasium
 info	RL/ddpg_agent.py	/^    next_state, reward, terminated, truncated, info = env.step(action.detach().numpy())$/;"	v
 info	RL/dqn_agent.py	/^    next_state, reward, terminated ,truncated, info = env.step(action)$/;"	v
+info	experimental/sac.py	/^    next_state, reward, terminated, truncated, info = env.step(action.detach().numpy())$/;"	v
 make_layers	RL/ddpg_agent.py	/^    def make_layers(self):$/;"	m	class:Actor
 make_layers	RL/ddpg_agent.py	/^    def make_layers(self):$/;"	m	class:QNetwork
 make_layers	RL/dqn_agent.py	/^    def make_layers(self):$/;"	m	class:QNetwork
+make_layers	experimental/sac.py	/^    def make_layers(self):$/;"	m	class:Actor
+make_layers	experimental/sac.py	/^    def make_layers(self):$/;"	m	class:QNetwork
+make_networks	experimental/sac.py	/^    def make_networks(self, config):$/;"	m	class:DDPG
 next_state	RL/ddpg_agent.py	/^    next_state, reward, terminated, truncated, info = env.step(action.detach().numpy())$/;"	v
 next_state	RL/dqn_agent.py	/^    next_state, reward, terminated ,truncated, info = env.step(action)$/;"	v
+next_state	experimental/sac.py	/^    next_state, reward, terminated, truncated, info = env.step(action.detach().numpy())$/;"	v
 nn	RL/ddpg_agent.py	/^import torch.nn as nn$/;"	I	nameref:module:torch.nn
 nn	RL/dqn_agent.py	/^import torch.nn as nn$/;"	I	nameref:module:torch.nn
+nn	experimental/sac.py	/^import torch.nn as nn$/;"	I	nameref:module:torch.nn
+nn	experimental/sac_modified.py	/^    import torch.nn as nn$/;"	I	nameref:module:torch.nn
 np	RL/ReplayBuffer.py	/^import numpy as np$/;"	I	nameref:module:numpy
 np	RL/ddpg_agent.py	/^import numpy as np$/;"	I	nameref:module:numpy
 np	RL/dqn_agent.py	/^import numpy as np$/;"	I	nameref:module:numpy
+np	experimental/sac.py	/^import numpy as np$/;"	I	nameref:module:numpy
+np	experimental/sac_modified.py	/^import numpy as np$/;"	I	nameref:module:numpy
+npt	experimental/sac_modified.py	/^import numpy.typing as npt$/;"	I	nameref:module:numpy.typing
 optim	RL/ddpg_agent.py	/^import torch.optim as optim$/;"	I	nameref:module:torch.optim
 optim	RL/dqn_agent.py	/^import torch.optim as optim$/;"	I	nameref:module:torch.optim
+optim	experimental/sac.py	/^import torch.optim as optim$/;"	I	nameref:module:torch.optim
+optim	experimental/sac_modified.py	/^    import torch.optim as optim$/;"	I	nameref:module:torch.optim
+predict	experimental/sac_modified.py	/^    def predict(self, observations: List[List[float]], deterministic: bool = None):$/;"	m	class:SAC
+rbc	experimental/sac_modified.py	/^    def rbc(self) -> RBC:$/;"	m	class:SACRBC	typeref:typename:RBC
 replay	RL/dqn_agent.py	/^    def replay(self,replay_buffer,batch_size=128,target_network=True):$/;"	m	class:DQNAgent
+replay	experimental/sac.py	/^    def replay(self,replay_buffer,batch_size=128,target_network=True):$/;"	m	class:DDPG
 reward	RL/ddpg_agent.py	/^    next_state, reward, terminated, truncated, info = env.step(action.detach().numpy())$/;"	v
 reward	RL/dqn_agent.py	/^    next_state, reward, terminated ,truncated, info = env.step(action)$/;"	v
+reward	experimental/sac.py	/^    next_state, reward, terminated, truncated, info = env.step(action.detach().numpy())$/;"	v
 sample	RL/ReplayBuffer.py	/^    def sample(self, batch_size):$/;"	m	class:ReplayBuffer
 select_action	RL/ddpg_agent.py	/^    def select_action(self, state, std=0):$/;"	m	class:DDPG
 select_action	RL/dqn_agent.py	/^    def select_action(self, state, exploration_prob=0):$/;"	m	class:DQNAgent
+select_action	experimental/sac.py	/^    def select_action(self, state, entropy=False):$/;"	m	class:DDPG
+set_encoders	experimental/sac_modified.py	/^    def set_encoders(self) -> List[List[Encoder]]:$/;"	m	class:SAC	typeref:typename:List[List[Encoder]]
 set_learning_rate	RL/dqn_agent.py	/^    def set_learning_rate(self,lr):$/;"	m	class:DQNAgent
 set_network_weights	RL/dqn_agent.py	/^    def set_network_weights(self,weights):$/;"	m	class:DQNAgent
+set_networks	experimental/sac_modified.py	/^    def set_networks(self, internal_observation_count: int = None):$/;"	m	class:SAC
 set_noise_rate	RL/dqn_agent.py	/^    def set_noise_rate(self, noise):$/;"	m	class:DQNAgent
 state	RL/ddpg_agent.py	/^    state,_ = env.reset()$/;"	v
 state	RL/dqn_agent.py	/^    state, _ = env.reset()$/;"	v
+state	experimental/sac.py	/^    state,_ = env.reset()$/;"	v
 terminated	RL/ddpg_agent.py	/^    next_state, reward, terminated, truncated, info = env.step(action.detach().numpy())$/;"	v
 terminated	RL/dqn_agent.py	/^    next_state, reward, terminated ,truncated, info = env.step(action)$/;"	v
+terminated	experimental/sac.py	/^    next_state, reward, terminated, truncated, info = env.step(action.detach().numpy())$/;"	v
 train_mode	RL/dqn_agent.py	/^    def train_mode(self):$/;"	m	class:DQNAgent
 truncated	RL/ddpg_agent.py	/^    next_state, reward, terminated, truncated, info = env.step(action.detach().numpy())$/;"	v
 truncated	RL/dqn_agent.py	/^    next_state, reward, terminated ,truncated, info = env.step(action)$/;"	v
+truncated	experimental/sac.py	/^    next_state, reward, terminated, truncated, info = env.step(action.detach().numpy())$/;"	v
+update	experimental/sac_modified.py	/^    def update(self, observations: List[List[float]], actions: List[List[float]], reward: List[f/;"	m	class:SAC
 update_lr	RL/ddpg_agent.py	/^    def update_lr(self, count):$/;"	m	class:DDPG
+update_lr	experimental/sac.py	/^    def update_lr(self, count):$/;"	m	class:DDPG
 update_target_q_network	RL/dqn_agent.py	/^    def update_target_q_network(self):$/;"	m	class:DQNAgent
