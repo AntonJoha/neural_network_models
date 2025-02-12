@@ -143,6 +143,7 @@ class DQNAgent:
         loss_r = loss.item()
         loss.backward()
         self.optimizer.step()
+        print(loss)
         return loss
  
 
@@ -178,12 +179,12 @@ if __name__ == "__main__":
     
     buffer = ReplayBuffer(1000)
     
-
-    next_state, reward, terminated ,truncated, info = env.step(action)
+    for i in range(100):
+        next_state, reward, terminated ,truncated, info = env.step(action)
     
-    buffer.add([state, action, reward, next_state])
+        buffer.add([state, action, reward, next_state])
 
-    a.replay(buffer, 1, True)
+        a.replay(buffer, 1, True)
 
     print(QNetwork(conf).network)
 
