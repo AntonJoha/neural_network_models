@@ -47,8 +47,16 @@ class DDPG:
         return {"actor": self.optimizer_actor.noise_rate,
                 "critic": self.optimizer_critic}
     
-    def select_action(self, state, variance=0):
-        state_tensor = torch.tensor(state, device=device)
+    def select_action(self, state, variance=0, with_grad=False):
+        if torch.is_tensor(state):
+            state_tensor = state.to(device)
+        else:
+            state_tensor = torch.tensor(state, device=device)
+        if with_grad:
+            action = self.actor(state_tensor)
+            if variance == 0:
+                return action
+            return torch.normal(action, variance)
         with torch.no_grad():
             if variance==0:
                 return self.actor(state_tensor)
@@ -97,7 +105,7 @@ class DDPG:
         
 
         self.optimizer_actor.zero_grad()
-        actor_loss = -self.get_q_value(states_tensor, self.actor(states_tensor)).mean()
+        actor_loss = -self.get_q_value(states_tensor, self.select_action(states_tensor, with_grad=True)).mean()
         actor_loss.backward()
         self.optimizer_actor.step()
         
