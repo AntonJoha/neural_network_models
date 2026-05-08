@@ -1,10 +1,11 @@
-import torch 
-import torch.nn as nn
-import torch.optim as optim
-import numpy as np
 import sys
 
+import torch
+import torch.nn as nn
+import torch.optim as optim
+
 from .networks import CriticNetwork, device
+
 
 class Actor(nn.Module):
 
@@ -55,7 +56,7 @@ class Actor(nn.Module):
 
     def __init__(self, config=None):
         print("HEERE")
-        super(Actor, self).__init__()
+        super().__init__()
         self.config = config
         if self.config is None:
             sys.exit("NO CONFIG")
@@ -193,8 +194,8 @@ if __name__ == "__main__":
     actor = Actor(conf)
     ddpg = DDPG(conf)
  
+
     import gymnasium as gym
-    from collections import deque
     from ReplayBuffer import ReplayBuffer
 
     env = gym.make("MountainCarContinuous-v0")

@@ -1,6 +1,7 @@
+import sys
+
 import torch
 import torch.nn as nn
-import sys
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -17,7 +18,7 @@ class Actor(nn.Module):
     """
 
     def __init__(self, config=None):
-        super(Actor, self).__init__()
+        super().__init__()
         self.config = config
         if self.config is None:
             sys.exit("No config")
@@ -69,7 +70,7 @@ class CriticNetwork(nn.Module):
         if self.config is None:
             sys.exit("No config")
 
-        super(CriticNetwork, self).__init__()
+        super().__init__()
 
         self.make_layers()
 

@@ -5,10 +5,10 @@ import numpy as np
 import torch
 import torch.optim as optim
 
-from RL.ReplayBuffer import ReplayBuffer
 from RL.cddpg_agent import DDPG as CDDPGAgent
 from RL.ddpg_agent import DDPG as DDPGAgent
 from RL.dqn_agent import DQNAgent
+from RL.ReplayBuffer import ReplayBuffer
 from RL.sac import DDPG as SACAgent
 
 
@@ -22,7 +22,7 @@ def clone_parameters(module):
 
 def parameters_changed(before, module):
     after = list(module.parameters())
-    return any(not torch.allclose(b, a.detach()) for b, a in zip(before, after))
+    return any(not torch.allclose(b, a.detach()) for b, a in zip(before, after, strict=False))
 
 
 class TestRLTraining(unittest.TestCase):

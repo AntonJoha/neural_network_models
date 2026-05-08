@@ -1,14 +1,17 @@
-import torch 
-import torch.nn as nn
-import torch.optim as optim
-import numpy as np
 import sys
 
-from .networks import Actor as QNetwork, device
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.optim as optim
+
+from .networks import Actor as QNetwork
+from .networks import device
+
 
 class DQNAgent:
 
-    def __init__(self, config=None, optimizer=optim.SGD, loss=nn.MSELoss()):
+    def __init__(self, config=None, loss=nn.MSELoss):
         
 
         if config is None:
@@ -21,7 +24,7 @@ class DQNAgent:
         self.target_network = QNetwork(self.config).to(device).eval()
         
         self.optimizer = config["optimizer"](self.q_network.parameters(), lr=self.lr, config=config)
-        self.loss_function = loss
+        self.loss_function = loss()
         
 
     def evaluate_mode(self):
@@ -104,7 +107,7 @@ class DQNAgent:
 
         # Update the Q-network
         loss = self.loss_function(q_values, target_q_values)
-        loss_r = loss.item()
+        loss.item()
         loss.backward()
         self.optimizer.step()
         print(loss)
@@ -131,8 +134,8 @@ if __name__ == "__main__":
 
     a = DQNAgent(conf)
     
+
     import gymnasium as gym
-    from collections import deque
     from ReplayBuffer import ReplayBuffer
 
     env = gym.make("Acrobot-v1")
@@ -143,7 +146,7 @@ if __name__ == "__main__":
     
     buffer = ReplayBuffer(1000)
     
-    for i in range(100):
+    for _i in range(100):
         next_state, reward, terminated ,truncated, info = env.step(action)
     
         buffer.add([state, action, reward, next_state])

@@ -1,8 +1,8 @@
-import torch 
+import sys
+
+import torch
 import torch.nn as nn
 import torch.optim as optim
-import numpy as np
-import sys
 
 from .networks import Actor, CriticNetwork, device
 
@@ -135,8 +135,8 @@ if __name__ == "__main__":
     actor = Actor(conf)
     ddpg = DDPG(conf)
  
+
     import gymnasium as gym
-    from collections import deque
     from ReplayBuffer import ReplayBuffer
 
     env = gym.make("MountainCarContinuous-v0")
@@ -147,12 +147,12 @@ if __name__ == "__main__":
     print(action)
 
     buffer = ReplayBuffer(1000)
-    for i in range(100):
+    for _i in range(100):
         next_state, reward, terminated, truncated, info = env.step(action.detach().numpy())
         
         print("Reward: ", reward)
 
         buffer.add([state, action, reward, next_state])
     
-        for i in range(10):
+        for _i in range(10):
             ddpg.train(buffer, 100)
