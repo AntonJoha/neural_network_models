@@ -4,42 +4,7 @@ import torch.optim as optim
 import numpy as np
 import sys
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-class QNetwork(nn.Module):
-
-    def __init__(self, config=None):
-        self.config = config
-        self.network = []
-        if self.config is None:
-            sys.exit("No config")
-
-        super(QNetwork, self).__init__()
-        
-        self.make_layers()
-
-    
-    def make_layers(self):
-        dims = [self.config["input"] + self.config["output"]]
-        for i in self.config["q_layers"]:
-            dims.append(i)
-
-        for i in range(len(dims) - 1):
-            self.network.append(nn.Linear(dims[i], dims[i+1], dtype=torch.float, device=device))
-            if "activation" not in self.config:
-                self.network.append(nn.Sigmoid())
-            else:
-                self.network.append(self.config["activation"]())
-        self.network.append(nn.Linear(dims[-1], 1, dtype=torch.float, device=device))
-
-        self.network = nn.ModuleList(self.network)
-        return
-
-    def forward(self, data):
-        for l in self.network:
-            data = l(data)
-        return data
-
+from .networks import CriticNetwork, device
 
 class Actor(nn.Module):
 
@@ -110,8 +75,8 @@ class DDPG:
 
     def make_networks(self, config):
 
-        self.critic_1 = QNetwork(config)
-        self.critic_2 = QNetwork(config)
+        self.critic_1 = CriticNetwork(config)
+        self.critic_2 = CriticNetwork(config)
         self.optimizer_critic_1 = config["optimizer"](self.critic_1.parameters(),
                                                     lr=config["critic_lr"],
                                                     config=config)
@@ -121,8 +86,8 @@ class DDPG:
                                                     config=config)
 
         if "target_network" in config and config["target_network"]:
-            self.target_network_1 = QNetwork(config)
-            self.target_network_2 = QNetwork(config)
+            self.target_network_1 = CriticNetwork(config)
+            self.target_network_2 = CriticNetwork(config)
 
         self.actor = Actor(config)
         self.optimizer_actor = config["optimizer"](self.actor.parameters(),
@@ -202,8 +167,8 @@ if __name__ == "__main__":
             "discount": 0.99,
             "optimizer": adam_wrapper}
 
-    print(QNetwork(conf).network)
-    critic = QNetwork(conf)
+    print(CriticNetwork(conf).network)
+    critic = CriticNetwork(conf)
     actor = Actor(conf)
     ddpg = DDPG(conf)
  

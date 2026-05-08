@@ -4,89 +4,7 @@ import torch.optim as optim
 import numpy as np
 import sys
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-class QNetwork(nn.Module):
-
-    def __init__(self, config=None):
-        self.config = config
-        self.network = []
-        if self.config is None:
-            sys.exit("No config")
-
-        super(QNetwork, self).__init__()
-        
-        self.make_layers()
-
-    
-    def make_layers(self):
-        dims = [self.config["input"] + self.config["output"]]
-        for i in self.config["q_layers"]:
-            dims.append(i)
-
-        for i in range(len(dims) - 1):
-            self.network.append(nn.Linear(dims[i], dims[i+1], dtype=torch.float, device=device))
-            if "activation" not in self.config:
-                self.network.append(nn.Sigmoid())
-            else:
-                self.network.append(self.config["activation"]())
-        self.network.append(nn.Linear(dims[-1], 1, dtype=torch.float, device=device))
-
-        self.network = nn.ModuleList(self.network)
-        return
-
-    def forward(self, data):
-        for l in self.network:
-            data = l(data)
-        return data
-
-
-class Actor(nn.Module):
-
-    def make_layers(self):
-
-        dims = [self.config["input"]]
-        for i in self.config["layers"]:
-            dims.append(i)
-
-        self.network = []
-
-        for i in range(len(dims) - 1):
-            self.network.append(
-                    nn.Linear(
-                        dims[i],
-                        dims[i+1],
-                        dtype=torch.float,
-                        device=device)
-                    )
-
-            if "activation" not in self.config:
-                self.network.append(nn.Sigmoid())
-            else:
-                self.network.append(self.config["activation"]())
-        self.network.append(
-                nn.Linear(
-                    dims[-1],
-                    self.config["output"],
-                    dtype=torch.float,
-                    device=device)
-                )
-
-        self.network = nn.ModuleList(self.network)
-
-    def forward(self, data):
-        for l in self.network:
-            data = l(data)
-        return data
-
-    def __init__(self, config=None):
-        print("HEERE")
-        super(Actor, self).__init__()
-        self.config = config
-        if self.config is None:
-            sys.exit("NO CONFIG")
-
-        self.make_layers()
+from .networks import Actor, CriticNetwork, device
 
 
 class DDPG:
@@ -97,14 +15,14 @@ class DDPG:
         if self.config is None:
             sys.exit("NO CONFIG")
 
-        self.critic = QNetwork(config)
+        self.critic = CriticNetwork(config)
         self.optimizer_critic = config["optimizer"](self.critic.parameters(),
                                                     lr=config["critic_lr"],
                                                     config=config)
 
         self.target_network = None
         if "target_network" in config and config["target_network"]:
-            self.target_network = QNetwork(config)
+            self.target_network = CriticNetwork(config)
 
         self.actor = Actor(config)
         self.optimizer_actor = config["optimizer"](self.actor.parameters(),
@@ -204,8 +122,8 @@ if __name__ == "__main__":
             "discount": 0.99,
             "optimizer": adam_wrapper}
 
-    print(QNetwork(conf).network)
-    critic = QNetwork(conf)
+    print(CriticNetwork(conf).network)
+    critic = CriticNetwork(conf)
     actor = Actor(conf)
     ddpg = DDPG(conf)
  
