@@ -121,7 +121,7 @@ class DDPG:
 
         # Convert to tensors
         states_tensor = torch.tensor(states,dtype=torch.float,device=device)
-        actions_tensor = torch.tensor(actions,dtype=torch.float,device=device).view(-1, 1)
+        actions_tensor = torch.tensor(actions,dtype=torch.float,device=device).view(-1, self.config["output"])
         rewards_tensor = torch.tensor(rewards,dtype=torch.float,device=device).view(-1, 1)
         next_states_tensor = torch.tensor(next_states,dtype=torch.float,device=device)
 
