@@ -1,5 +1,3 @@
-# TODO tDLGM: Temporal Deep Latent Gaussian Model
-
 from collections.abc import Iterator
 from itertools import chain
 
@@ -278,7 +276,7 @@ class tDLGM(nn.Module):
         )
 
     def _loss(self, y, y_hat, mean, R, s, t_1, reg) -> torch.Tensor:
-        # Reconstruction loss (MSE vs sum — TODO: verify which is correct)
+        # Reconstruction loss (MSE vs some kind of cross entropy — TODO: verify which is correct for what situation)
         target = y.reshape_as(y_hat)
         loss = self.mse(y_hat, target)
         matrix_size = mean[0].size(0) * mean[0].size(1)
@@ -335,6 +333,49 @@ class tDLGM(nn.Module):
         return val
 
 
+class tDLGMCrossEntropy(tDLGM):
+    def __init__(
+        self,
+        input_dim=1,
+        hidden_size=1,
+        latent_dim=1,
+        output_dim=1,
+        layers=1,
+        seq_len=1,
+        device=None,
+    ):
+        super().__init__(
+            input_dim, hidden_size, latent_dim, output_dim, layers, seq_len, device
+        )
+        self.cross_entropy = nn.CrossEntropyLoss()
+
+    def _loss(self, y, y_hat, mean, R, s, t_1, reg) -> torch.Tensor:
+        target = y.argmax(dim=-1)
+        loss = self.cross_entropy(y_hat, target)
+        matrix_size = mean[0].size(0) * mean[0].size(1)
+
+        for m, r in zip(mean, R, strict=False):
+            C = r @ r.transpose(-2, -1)
+            det = C.det()
+            loss += (
+                0.5
+                * torch.sum(
+                    m.pow(2).sum(-1)
+                    + C.diagonal(dim1=-2, dim2=-1).sum(-1)
+                    - det.log()
+                    - 1
+                )
+                / matrix_size
+            )
+
+        amount = len(s) * len(s[0])
+        for a, b in zip(s, t_1, strict=False):
+            loss += reg * (self.mse(a[0], b[0]) + self.mse(a[1], b[1])) / amount
+
+        return loss
+
+
+
 # ── Self-test ─────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
@@ -356,9 +397,34 @@ if __name__ == "__main__":
     x_1 = torch.cat((x, y), dim=1)[:, 1:, :]  ## used for the recognition
 
     before = model.get_loss(x, x_1, y)
-    for _i in range(300):
+    for _ in range(300):
         loss = model.train_step(x, x_1, y, optimizer)
     after = model.get_loss(x, x_1, y)
     print(f"Loss before training: {before}")
     print(f"Loss after training: {after}")
-    assert after < before, "Loss did not decrease after training!"
+    assert after < before, "Loss did not decrease after training! MSELoss"
+
+    model = tDLGMCrossEntropy(
+        input_dim=10,
+        hidden_size=20,
+        latent_dim=5,
+        output_dim=10,
+        layers=2,
+        seq_len=3,
+        device=device,
+    ).to(device)
+    optimizer = Adam(model.get_parameters(), lr=0.1)
+
+    x = torch.randn(50, 3, 10).to(device)  ## used for the state recognition
+    y = torch.randint(0, 10, (50, 1)).to(device)  ## the value to be reconstructed (class labels)
+    x_1 = torch.cat((x, nn.functional.one_hot(y.squeeze(), num_classes=10).float().unsqueeze(1)), dim=1)[:, 1:, :]  ## used for the recognition
+
+    before = model.get_loss(x, x_1, y)
+    for _ in range(300):
+        loss = model.train_step(x, x_1, y, optimizer)
+    after = model.get_loss(x, x_1, y)
+    print(f"Loss before training: {before}")
+    print(f"Loss after training: {after}")
+    assert after < before, "Loss did not decrease after training! CrossEntropyLoss"
+
+
