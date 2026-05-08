@@ -65,6 +65,8 @@ class GenLayer(nn.Module):
         self.latent_dim = latent_dim
         self.seq_len = seq_len
         self.device = device
+        # None is intentional: PyTorch LSTM accepts None as initial state (defaults to zeros).
+        # Call make_internal_state() before forward() to use an explicit zero state.
         self.internal_state = None
 
         self.lstm = nn.LSTM(
@@ -267,7 +269,7 @@ class tDLGM(nn.Module):
 
         self.mse = nn.MSELoss()
 
-    def get_parameters(self) -> chain:
+    def get_parameters(self) -> "chain[nn.Parameter]":
         return chain(
             self.model_t.parameters(),
             self.model_g.parameters(),
