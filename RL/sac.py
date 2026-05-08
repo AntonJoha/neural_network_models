@@ -120,33 +120,47 @@ class DDPG:
 
         # Convert to tensors
         states_tensor = torch.tensor(states,dtype=torch.float,device=device)
-        actions_tensor = torch.tensor(actions,dtype=torch.long,device=device).view(-1, 1)
+        actions_tensor = torch.tensor(actions,dtype=torch.float,device=device).view(-1, 1)
         rewards_tensor = torch.tensor(rewards,dtype=torch.float,device=device).view(-1, 1)
         next_states_tensor = torch.tensor(next_states,dtype=torch.float,device=device)
 
 
-                # Q-values for the next states (target Q-network)
-        if self.config["target_network"]:
+        # Q-values for the next states
+        if self.config["target_network"] and target_network:
             with torch.no_grad():
-                next_q_values = self.target_network(next_states_tensor).max(1)[0].unsqueeze(1)
+                next_actions = self.actor(next_states_tensor)[2]
+                next_q_1 = self.target_network_1(torch.cat((next_states_tensor, next_actions), dim=1))
+                next_q_2 = self.target_network_2(torch.cat((next_states_tensor, next_actions), dim=1))
+                next_q_values = torch.min(next_q_1, next_q_2)
         else:
             with torch.no_grad():
-                next_q_values = self.q_network(next_states_tensor).max(1)[0].unsqueeze(1)
+                next_actions = self.actor(next_states_tensor)[2]
+                next_q_1 = self.critic_1(torch.cat((next_states_tensor, next_actions), dim=1))
+                next_q_2 = self.critic_2(torch.cat((next_states_tensor, next_actions), dim=1))
+                next_q_values = torch.min(next_q_1, next_q_2)
 
         # Calculate target Q-values
         target_q_values = rewards_tensor + self.config["discount"] * next_q_values
-        
-        self.optimizer.zero_grad()
-        # Q-values for the current state-action pairs
-        q_values = self.q_network(states_tensor).gather(1,actions_tensor)
 
+        self.optimizer_critic_1.zero_grad()
+        q_values_1 = self.critic_1(torch.cat((states_tensor, actions_tensor), dim=1))
+        loss_1 = nn.MSELoss()(q_values_1, target_q_values)
+        loss_1.backward()
+        self.optimizer_critic_1.step()
 
-        # Update the Q-network
-        loss = self.loss_function(q_values, target_q_values)
-        loss_r = loss.item()
-        loss.backward()
-        self.optimizer.step()
-        return loss
+        self.optimizer_critic_2.zero_grad()
+        q_values_2 = self.critic_2(torch.cat((states_tensor, actions_tensor), dim=1))
+        loss_2 = nn.MSELoss()(q_values_2, target_q_values)
+        loss_2.backward()
+        self.optimizer_critic_2.step()
+
+        self.optimizer_actor.zero_grad()
+        actor_actions = self.actor(states_tensor)[2]
+        actor_loss = -self.critic_1(torch.cat((states_tensor, actor_actions), dim=1)).mean()
+        actor_loss.backward()
+        self.optimizer_actor.step()
+
+        return loss_1 + loss_2
  
 
 if __name__ == "__main__":
@@ -187,5 +201,4 @@ if __name__ == "__main__":
     buffer = ReplayBuffer(1000)
 
     buffer.add([state, action, reward, next_state])
-
 

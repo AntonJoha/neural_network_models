@@ -76,7 +76,7 @@ class DDPG:
 
         # Convert to tensors
         states_tensor = torch.tensor(states,dtype=torch.float,device=device)
-        actions_tensor = torch.tensor(actions,dtype=torch.long,device=device).view(-1, 1)
+        actions_tensor = torch.tensor(actions,dtype=torch.float,device=device).view(-1, 1)
         rewards_tensor = torch.tensor(rewards,dtype=torch.float,device=device).view(-1, 1)
         next_states_tensor = torch.tensor(next_states,dtype=torch.float,device=device)
 
@@ -98,7 +98,7 @@ class DDPG:
         
 
         self.optimizer_actor.zero_grad()
-        policy_reward =  - self.get_q_value(states_tensor, self.select_action(states_tensor))
+        policy_reward = -self.get_q_value(states_tensor, self.actor(states_tensor))
         policy_mean = policy_reward.mean()
         policy_mean.backward()
         self.optimizer_actor.step()
