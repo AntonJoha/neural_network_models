@@ -260,10 +260,19 @@ class tDLGM(nn.Module):
     ):
         super().__init__()
 
-        self.model_t = TimeRecognition(input_dim, hidden_size, seq_len, layers, device)
-        self.model_g = Generator(
-            hidden_size, latent_dim, output_dim, layers, seq_len, device
-        )
+        self.model_t = TimeRecognition(input_dim,
+                                       hidden_size,
+                                       seq_len,
+                                       layers,
+                                       device)
+
+        self.model_g = Generator(hidden_size,
+                                 latent_dim,
+                                 output_dim,
+                                 layers,
+                                 seq_len,
+                                 device)
+
         self.model_r = Recognition(input_dim, latent_dim, layers, device)
 
         self.mse = nn.MSELoss()
@@ -276,7 +285,6 @@ class tDLGM(nn.Module):
         )
 
     def _loss(self, y, y_hat, mean, R, s, t_1, reg) -> torch.Tensor:
-        # Reconstruction loss (MSE vs some kind of cross entropy — TODO: verify which is correct for what situation)
         target = y.reshape_as(y_hat)
         loss = self.mse(y_hat, target)
         matrix_size = mean[0].size(0) * mean[0].size(1)
