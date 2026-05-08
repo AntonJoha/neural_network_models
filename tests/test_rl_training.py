@@ -13,7 +13,6 @@ from RL.sac import DDPG as SACAgent
 
 
 def adam_wrapper(parameters, lr, config):
-    _ = config
     return optim.Adam(parameters, lr=lr)
 
 
