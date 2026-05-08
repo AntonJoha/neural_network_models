@@ -68,7 +68,7 @@ class RecLayer(nn.Module):
         ut_d_inv_u = torch.matmul(u_r.transpose(-2,-1), torch.matmul(D_inv, u_r))
         eta = 1.0 / (1.0 + ut_d_inv_u)
         # Keep epsilon guard: ut_d_inv_u can be exactly zero when u is zero.
-        right = (1.0 - torch.sqrt(eta)) / (ut_d_inv_u + epsilon)
+        right = (1.0 - torch.sqrt(eta)) / ut_d_inv_u.clamp(min=epsilon)
         R = D_inv_sqrt - right * torch.matmul(D_inv, torch.matmul(U, D_inv_sqrt))
         return R
 
@@ -235,6 +235,8 @@ class DLGM(nn.Module):
 
     def _loss(self, y, y_hat, mean, R) -> torch.Tensor:
         epsilon = epsilon_for(y_hat)
+        if y.numel() != y_hat.numel():
+            raise ValueError(f"Target shape {tuple(y.shape)} is incompatible with prediction shape {tuple(y_hat.shape)}")
         target = y.reshape_as(y_hat)
         loss = self.mse(y_hat, target)
         matrix_size = mean[0].size(0) * mean[0].size(1)
