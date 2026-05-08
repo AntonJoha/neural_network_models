@@ -5,6 +5,11 @@ from itertools import chain
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+DEFAULT_EPSILON = 1e-6
+
+
+def epsilon_for(tensor: torch.Tensor) -> float:
+    return max(DEFAULT_EPSILON, torch.finfo(tensor.dtype).eps)
 
 
 
@@ -54,7 +59,7 @@ class RecLayer(nn.Module):
     
 
     def calculate_r(self, d, u):
-        epsilon = 1e-6
+        epsilon = epsilon_for(d)
         d_safe = d.clamp(min=epsilon)
         D_inv = torch.diag_embed(1.0 / d_safe)
         D_inv_sqrt = torch.sqrt(D_inv)
@@ -62,6 +67,7 @@ class RecLayer(nn.Module):
         U = torch.matmul(u_r, u_r.transpose(-2,-1))
         ut_d_inv_u = torch.matmul(u_r.transpose(-2,-1), torch.matmul(D_inv, u_r))
         eta = 1.0 / (1.0 + ut_d_inv_u)
+        # Keep epsilon guard: ut_d_inv_u can be exactly zero when u is zero.
         right = (1.0 - torch.sqrt(eta)) / (ut_d_inv_u + epsilon)
         R = D_inv_sqrt - right * torch.matmul(D_inv, torch.matmul(U, D_inv_sqrt))
         return R
@@ -228,7 +234,7 @@ class DLGM(nn.Module):
         )
 
     def _loss(self, y, y_hat, mean, R) -> torch.Tensor:
-        epsilon = 1e-6
+        epsilon = epsilon_for(y_hat)
         target = y.reshape_as(y_hat)
         loss = self.mse(y_hat, target)
         matrix_size = mean[0].size(0) * mean[0].size(1)
