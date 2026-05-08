@@ -5,6 +5,11 @@ from itertools import chain
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+DEFAULT_EPSILON = 1e-6
+
+
+def epsilon_for(tensor: torch.Tensor) -> float:
+    return max(DEFAULT_EPSILON, torch.finfo(tensor.dtype).eps)
 
 
 
@@ -48,22 +53,23 @@ class RecLayer(nn.Module):
 
     
     def calculate_z(self, mean, R):
-        v = torch.randn(mean.size()).unsqueeze(-1).to(self.device)
-        mult = torch.matmul(R, v).squeeze()
+        v = torch.randn(*mean.size(), 1, device=self.device)
+        mult = torch.matmul(R, v).squeeze(-1)
         return mult + mean
     
 
     def calculate_r(self, d, u):
-        D = torch.diag_embed(d)
-        epsilon = 1e-6
-        D_inv = torch.inverse(D)  + epsilon
-        D_in_sqr = torch.sqrt(D_inv)
+        epsilon = epsilon_for(d)
+        d_safe = d.clamp(min=epsilon)
+        D_inv = torch.diag_embed(1.0 / d_safe)
+        D_inv_sqrt = torch.sqrt(D_inv)
         u_r = u.unsqueeze(-1)
         U = torch.matmul(u_r, u_r.transpose(-2,-1))
         ut_d_inv_u = torch.matmul(u_r.transpose(-2,-1), torch.matmul(D_inv, u_r))
-        eta = 1/(1 + ut_d_inv_u)
-        right = (1 - torch.sqrt(eta)) / ut_d_inv_u
-        R = D_in_sqr - right*torch.matmul(D_inv, torch.matmul(U, D_in_sqr))
+        eta = 1.0 / (1.0 + ut_d_inv_u)
+        # Keep epsilon guard: ut_d_inv_u can be exactly zero when u is zero.
+        right = (1.0 - torch.sqrt(eta)) / ut_d_inv_u.clamp(min=epsilon)
+        R = D_inv_sqrt - right * torch.matmul(D_inv, torch.matmul(U, D_inv_sqrt))
         return R
 
 class Recognition(nn.Module):
@@ -111,7 +117,6 @@ class GenLayer(nn.Module):
         self.latent_dim=latent_dim
         self.seq_len=seq_len
         self.device=device
-
         self.t = nn.Sequential(
             nn.Linear(in_features=self.hidden_size,
                             out_features=self.hidden_size,device=device),
@@ -130,10 +135,6 @@ class GenLayer(nn.Module):
                             out_features=self.hidden_size,
                             device=self.device),
             nn.LeakyReLU()).to(self.device)
-
-
-    def get_internal_state(self):
-        return self.internal_state
 
     # Adding the noise and previous layer
     def forward(self, h, xi):
@@ -233,19 +234,23 @@ class DLGM(nn.Module):
         )
 
     def _loss(self, y, y_hat, mean, R) -> torch.Tensor:
-        print("y_hat:", y_hat.shape)
-        loss = self.mse(y_hat, y)
+        epsilon = epsilon_for(y_hat)
+        if y.numel() != y_hat.numel():
+            raise ValueError(f"Target shape {tuple(y.shape)} is incompatible with prediction shape {tuple(y_hat.shape)}")
+        target = y.reshape_as(y_hat)
+        loss = self.mse(y_hat, target)
         matrix_size = mean[0].size(0) * mean[0].size(1)
 
         for m, r in zip(mean, R, strict=False):
             C = r @ r.transpose(-2, -1)
-            det = C.det()
+            eye = torch.eye(C.size(-1), device=C.device, dtype=C.dtype).expand_as(C)
+            _, logdet = torch.linalg.slogdet(C + epsilon * eye)
             loss += (
                 0.5
                 * torch.sum(
                     m.pow(2).sum(-1)
                     + C.diagonal(dim1=-2, dim2=-1).sum(-1)
-                    - det.log()
+                    - logdet
                     - 1
                 )
                 / matrix_size
@@ -253,7 +258,8 @@ class DLGM(nn.Module):
         return loss
 
     def get_loss(self, x, x_1, y) -> float:
-        return self.train_step(x, x_1, y, optimizer=None)
+        with torch.no_grad():
+            return self.train_step(x, x_1, y, optimizer=None)
 
     def train_step(self, x, x_1, y, optimizer) -> float:
         if optimizer is not None:
@@ -306,5 +312,3 @@ if __name__ == "__main__":
     print(f"Loss before training: {before}")
     print(f"Loss after training: {after}")
     assert after < before, "Loss did not decrease after training! MSELoss"
-
-
