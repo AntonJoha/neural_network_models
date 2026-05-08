@@ -98,9 +98,8 @@ class DDPG:
         
 
         self.optimizer_actor.zero_grad()
-        policy_reward = -self.get_q_value(states_tensor, self.actor(states_tensor))
-        policy_mean = policy_reward.mean()
-        policy_mean.backward()
+        actor_loss = -self.get_q_value(states_tensor, self.actor(states_tensor)).mean()
+        actor_loss.backward()
         self.optimizer_actor.step()
         
 

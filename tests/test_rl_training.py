@@ -73,7 +73,7 @@ class TestRLTraining(unittest.TestCase):
 
         for _ in range(64):
             state = np.random.uniform(-1.0, 1.0, size=(3,)).astype(np.float32)
-            action = float(np.random.uniform(-1.0, 1.0))
+            action = np.random.uniform(-1.0, 1.0, size=(1,)).astype(np.float32)
             reward = float(np.random.uniform(-1.0, 1.0))
             next_state = (state + np.random.normal(0.0, 0.1, size=(3,))).astype(np.float32)
             replay.add([state, action, reward, next_state])
@@ -102,7 +102,7 @@ class TestRLTraining(unittest.TestCase):
 
         for _ in range(64):
             state = np.random.uniform(-1.0, 1.0, size=(3,)).astype(np.float32)
-            action = float(np.random.uniform(-1.0, 1.0))
+            action = np.random.uniform(-1.0, 1.0, size=(1,)).astype(np.float32)
             reward = float(np.random.uniform(-1.0, 1.0))
             next_state = (state + np.random.normal(0.0, 0.1, size=(3,))).astype(np.float32)
             replay.add([state, action, reward, next_state])
@@ -131,7 +131,7 @@ class TestRLTraining(unittest.TestCase):
 
         for _ in range(64):
             state = np.random.uniform(-1.0, 1.0, size=(3,)).astype(np.float32)
-            action = float(np.random.uniform(-1.0, 1.0))
+            action = np.random.uniform(-1.0, 1.0, size=(1,)).astype(np.float32)
             reward = float(np.random.uniform(-1.0, 1.0))
             next_state = (state + np.random.normal(0.0, 0.1, size=(3,))).astype(np.float32)
             replay.add([state, action, reward, next_state])
