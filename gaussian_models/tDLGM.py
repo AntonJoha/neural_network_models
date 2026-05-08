@@ -278,7 +278,8 @@ class tDLGM(nn.Module):
 
     def _loss(self, y, y_hat, mean, R, s, x_1, reg) -> torch.Tensor:
         # Reconstruction loss (MSE vs sum — TODO: verify which is correct)
-        loss = self.mse(y_hat, y.squeeze())
+        target = y.reshape_as(y_hat)
+        loss = self.mse(y_hat, target)
         matrix_size = mean[0].size(0) * mean[0].size(1)
 
         for m, r in zip(mean, R, strict=False):
