@@ -4,7 +4,7 @@ import torch.optim as optim
 import numpy as np
 import sys
 
-from networks import Actor, CriticNetwork, device
+from .networks import Actor, CriticNetwork, device
 
 
 class DDPG:
