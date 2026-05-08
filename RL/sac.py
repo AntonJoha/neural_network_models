@@ -128,13 +128,13 @@ class DDPG:
         # Q-values for the next states
         if self.config["target_network"] and target_network:
             with torch.no_grad():
-                next_actions = self.actor(next_states_tensor)[2]
+                _, _, next_actions = self.actor(next_states_tensor)
                 next_q_1 = self.target_network_1(torch.cat((next_states_tensor, next_actions), dim=1))
                 next_q_2 = self.target_network_2(torch.cat((next_states_tensor, next_actions), dim=1))
                 next_q_values = torch.min(next_q_1, next_q_2)
         else:
             with torch.no_grad():
-                next_actions = self.actor(next_states_tensor)[2]
+                _, _, next_actions = self.actor(next_states_tensor)
                 next_q_1 = self.critic_1(torch.cat((next_states_tensor, next_actions), dim=1))
                 next_q_2 = self.critic_2(torch.cat((next_states_tensor, next_actions), dim=1))
                 next_q_values = torch.min(next_q_1, next_q_2)
@@ -155,7 +155,7 @@ class DDPG:
         self.optimizer_critic_2.step()
 
         self.optimizer_actor.zero_grad()
-        actor_actions = self.actor(states_tensor)[2]
+        _, _, actor_actions = self.actor(states_tensor)
         actor_loss = -self.critic_1(torch.cat((states_tensor, actor_actions), dim=1)).mean()
         actor_loss.backward()
         self.optimizer_actor.step()
@@ -201,4 +201,3 @@ if __name__ == "__main__":
     buffer = ReplayBuffer(1000)
 
     buffer.add([state, action, reward, next_state])
-
