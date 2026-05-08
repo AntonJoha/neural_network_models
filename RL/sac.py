@@ -93,6 +93,7 @@ class DDPG:
         self.optimizer_actor = config["optimizer"](self.actor.parameters(),
                                                    lr=config["actor_lr"],
                                                    config=config)
+        self.loss_function = nn.MSELoss()
 
         
 
@@ -144,13 +145,13 @@ class DDPG:
 
         self.optimizer_critic_1.zero_grad()
         q_values_1 = self.critic_1(torch.cat((states_tensor, actions_tensor), dim=1))
-        loss_1 = nn.MSELoss()(q_values_1, target_q_values)
+        loss_1 = self.loss_function(q_values_1, target_q_values)
         loss_1.backward()
         self.optimizer_critic_1.step()
 
         self.optimizer_critic_2.zero_grad()
         q_values_2 = self.critic_2(torch.cat((states_tensor, actions_tensor), dim=1))
-        loss_2 = nn.MSELoss()(q_values_2, target_q_values)
+        loss_2 = self.loss_function(q_values_2, target_q_values)
         loss_2.backward()
         self.optimizer_critic_2.step()
 
@@ -160,7 +161,7 @@ class DDPG:
         actor_loss.backward()
         self.optimizer_actor.step()
 
-        return loss_1 + loss_2
+        return (loss_1 + loss_2).detach()
  
 
 if __name__ == "__main__":
