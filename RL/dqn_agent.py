@@ -4,43 +4,7 @@ import torch.optim as optim
 import numpy as np
 import sys
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
-class QNetwork(nn.Module):
-    
-    def __init__(self, config=None):
-        self.config = config
-        self.network = []
-        if self.config is None:
-            sys.exit("No config")
-
-        super(QNetwork, self).__init__()
-
-        
-        self.make_layers()
-
-    
-    def make_layers(self):
-        dims = [self.config["input"]]
-        for i in self.config["layers"]:
-            dims.append(i)
-
-        for i in range(len(dims) - 1):
-            self.network.append(nn.Linear(dims[i], dims[i+1], dtype=torch.float, device=device))
-            if "activation" not in self.config:
-                self.network.append(nn.Sigmoid())
-            else:
-                self.network.append(self.config["activation"]())
-        self.network.append(nn.Linear(dims[-1], self.config["output"], dtype=torch.float, device=device))
-
-        self.network = nn.ModuleList(self.network)
-        return
-
-    def forward(self, data):
-        for l in self.network:
-            data = l(data)
-        return data
+from networks import Actor as QNetwork, device
 
 class DQNAgent:
 
