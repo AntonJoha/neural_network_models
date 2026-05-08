@@ -1,5 +1,6 @@
 # TODO tDLGM: Temporal Deep Latent Gaussian Model
 
+from collections.abc import Iterator
 from itertools import chain
 
 import torch
@@ -12,10 +13,9 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class TimeLayer(nn.Module):
-    def __init__(self, input_dim=1, hidden_size=1, seq_len=1, device=None):
+    def __init__(self, input_dim=1, hidden_size=1, device=None):
         super().__init__()
         self.hidden_size = hidden_size
-        self.seq_len = seq_len
         self.device = device
 
         self.lstm = nn.LSTM(
@@ -45,7 +45,6 @@ class TimeRecognition(nn.Module):
             TimeLayer(
                 input_dim=input_dim,
                 hidden_size=hidden_size,
-                seq_len=seq_len,
                 device=device,
             )
             for _ in range(layers)
@@ -209,10 +208,12 @@ class RecLayer(nn.Module):
 
     def _calculate_r(self, d, u):
         epsilon = 1e-6
-        D = torch.diag_embed(d)
-        # Adding epsilon to all elements of D_inv (including off-diagonal) ensures
-        # every input to sqrt is positive, avoiding undefined gradients at zero.
-        D_inv = torch.linalg.inv(D) + epsilon
+        # D is diagonal, so its inverse is just the elementwise reciprocal of d.
+        # Clamping d prevents inf when sigmoid output underflows to 0.
+        d_safe = d.clamp(min=epsilon)
+        # Adding epsilon after diag_embed ensures every element (including
+        # off-diagonals) is positive before sqrt, avoiding undefined gradients.
+        D_inv = torch.diag_embed(1.0 / d_safe) + epsilon
         D_inv_sqrt = torch.sqrt(D_inv)
         u_r = u.unsqueeze(-1)
         U = torch.matmul(u_r, u_r.transpose(-2, -1))
@@ -269,14 +270,14 @@ class tDLGM(nn.Module):
 
         self.mse = nn.MSELoss()
 
-    def get_parameters(self) -> "chain[nn.Parameter]":
+    def get_parameters(self) -> Iterator[nn.Parameter]:
         return chain(
             self.model_t.parameters(),
             self.model_g.parameters(),
             self.model_r.parameters(),
         )
 
-    def _loss(self, y, y_hat, mean, R, s, x_1, reg) -> torch.Tensor:
+    def _loss(self, y, y_hat, mean, R, s, t_1, reg) -> torch.Tensor:
         # Reconstruction loss (MSE vs sum — TODO: verify which is correct)
         target = y.reshape_as(y_hat)
         loss = self.mse(y_hat, target)
@@ -297,7 +298,7 @@ class tDLGM(nn.Module):
             )
 
         amount = len(s) * len(s[0])
-        for a, b in zip(s, x_1, strict=False):
+        for a, b in zip(s, t_1, strict=False):
             loss += reg * (self.mse(a[0], b[0]) + self.mse(a[1], b[1])) / amount
 
         return loss
