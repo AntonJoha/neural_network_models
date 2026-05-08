@@ -1,5 +1,6 @@
 # TODO tDLGM: Temporal Deep Latent Gaussian Model
 
+from collections.abc import Iterator
 from itertools import chain
 
 import torch
@@ -8,327 +9,304 @@ import torch.nn as nn
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-########################################################
-########################Time layer#####################
-########################################################
+# ── Time Recognition ──────────────────────────────────────────────────────────
+
 
 class TimeLayer(nn.Module):
-
-
-    def __init__(self, input_dim=1, hidden_size=1, seq_len=1, device=None):
+    def __init__(self, input_dim=1, hidden_size=1, device=None):
         super().__init__()
-            
-        self.input_dim=input_dim
         self.hidden_size = hidden_size
-        self.seq_len = seq_len
         self.device = device
 
-        self.lstm = nn.LSTM(input_size=input_dim, hidden_size=self.hidden_size,num_layers=1, batch_first=True).to(self.device)
-    
-    def init_hidden(self, size):
-        self.internal_state = [
-                    torch.zeros(1, size[0], self.hidden_size,device=self.device).to(self.device),
-                    torch.zeros(1, size[0], self.hidden_size,device=self.device).to(self.device)
-                ]
-
-
+        self.lstm = nn.LSTM(
+            input_size=input_dim,
+            hidden_size=self.hidden_size,
+            num_layers=1,
+            batch_first=True,
+            device=self.device,
+        )
 
     def forward(self, x):
-        self.init_hidden(x.size())
-        _, h = self.lstm(x)# , self.internal_state)
+        # No explicit initial state: PyTorch defaults to zeros, which is correct here.
+        _, h = self.lstm(x)
         return h
 
+
 class TimeRecognition(nn.Module):
-
-
-
     def __init__(self, input_dim=1, hidden_size=1, seq_len=1, layers=1, device=None):
         super().__init__()
-
         self.hidden_size = hidden_size
         self.seq_len = seq_len
         self.layers = layers
         self.device = device
-        self.input_dim=input_dim
+        self.input_dim = input_dim
 
-        self.make_network()
+        self.time_layers = nn.ModuleList(
+            TimeLayer(
+                input_dim=input_dim,
+                hidden_size=hidden_size,
+                device=device,
+            )
+            for _ in range(layers)
+        )
 
     def forward(self, x):
-        res = []
-        for l in self.h:
-            res.append(l(x))
-        return res
-    
-    def make_network(self):
-
-        self.h = nn.ModuleList()
-
-        for _i in range(self.layers):
-            self.h.append(TimeLayer(input_dim=self.input_dim,
-                                    hidden_size=self.hidden_size,
-                                    seq_len=self.seq_len,
-                                    device=self.device).to(self.device))
+        return [layer(x) for layer in self.time_layers]
 
 
-
-########################################################
-########################Generator#######################
-########################################################
+# ── Generator ─────────────────────────────────────────────────────────────────
 
 
 class GenLayer(nn.Module):
-
     def __init__(self, hidden_size=1, latent_dim=1, seq_len=1, device=None):
         super().__init__()
-        self.hidden_size=hidden_size
-        self.latent_dim=latent_dim
-        self.seq_len=seq_len
-        self.device=device
+        self.hidden_size = hidden_size
+        self.latent_dim = latent_dim
+        self.seq_len = seq_len
+        self.device = device
+        # None is intentional: PyTorch LSTM accepts None as initial state (defaults to zeros).
+        # Call make_internal_state() before forward() to use an explicit zero state.
+        self.internal_state = None
 
-        self.lstm = nn.LSTM(input_size=self.hidden_size,
-                            hidden_size=self.hidden_size,
-                            num_layers=1,
-                            batch_first=True,
-                            device=self.device)
-        
+        self.lstm = nn.LSTM(
+            input_size=self.hidden_size,
+            hidden_size=self.hidden_size,
+            num_layers=1,
+            batch_first=True,
+            device=self.device,
+        )
+
+        # Transform latent noise into hidden space
         self.g = nn.Sequential(
-            nn.Linear(in_features=self.latent_dim,
-                            out_features=self.latent_dim,
-                            device=self.device),
-            nn.Linear(in_features=self.latent_dim,
-                            out_features=self.hidden_size,
-                            device=self.device),
-            nn.LeakyReLU()).to(self.device)
-
+            nn.Linear(self.latent_dim, self.latent_dim, device=self.device),
+            nn.Linear(self.latent_dim, self.hidden_size, device=self.device),
+            nn.LeakyReLU(),
+        )
 
     def get_internal_state(self):
         return self.internal_state
 
-    # Adding the noise and previous layer
+    def set_internal_state(self, internal_state):
+        self.internal_state = internal_state
+
+    def make_internal_state(self, batch_size=1):
+        self.internal_state = (
+            torch.zeros(1, batch_size, self.hidden_size, device=self.device),
+            torch.zeros(1, batch_size, self.hidden_size, device=self.device),
+        )
+
     def forward(self, h, xi):
         h, self.internal_state = self.lstm(h, self.internal_state)
         return h + self.g(xi)
 
-    def set_internal_state(self, internal_state):
-        self.internal_state=internal_state
-    
-    def make_internal_state(self, batch_size=1):
-        self.internal_state = [
-                    torch.zeros(1, batch_size, self.hidden_size).to(self.device),
-                    torch.zeros(1, batch_size, self.hidden_size).to(self.device)
-                ]
 
 class Generator(nn.Module):
-
-    def __init__(self, hidden_size=1, latent_dim=1, output_dim=1, layers=1, seq_len=1, device=None):
+    def __init__(
+        self,
+        hidden_size=1,
+        latent_dim=1,
+        output_dim=1,
+        layers=1,
+        seq_len=1,
+        device=None,
+    ):
         super().__init__()
         self.output_dim = output_dim
-        self.layers=layers
+        self.layers = layers
         self.hidden_size = hidden_size
-        self.latent_dim=latent_dim
-        self.seq_len=seq_len
-        self.device=device
-        self.make_network()
+        self.latent_dim = latent_dim
+        self.seq_len = seq_len
+        self.device = device
         self.xi = None
 
-    def make_network(self):
+        self.gen_layers = nn.ModuleList(
+            GenLayer(hidden_size, latent_dim, seq_len, device) for _ in range(layers)
+        )
 
-        self.h_l = nn.ModuleList()
+        self.initial_transform = nn.Sequential(
+            nn.Linear(latent_dim, latent_dim, device=device),
+            nn.Linear(latent_dim, hidden_size, device=device),
+            nn.Tanh(),
+        )
 
-        for _i in range(self.layers):
-            self.h_l.append(GenLayer(self.hidden_size, self.latent_dim,self.seq_len, self.device))
-
-        self.H_L = nn.Sequential(
-            nn.Linear(in_features=self.latent_dim,
-                            out_features=self.latent_dim,
-                            device=self.device),
-            nn.Linear(in_features=self.latent_dim,
-                            out_features=self.hidden_size,
-                            device=self.device),
-            nn.Tanh()).to(self.device)
-
-        self.h_0 = nn.Sequential(
-                nn.Linear(in_features=self.hidden_size, out_features=self.output_dim, device=self.device),
-                nn.Sigmoid()).to(self.device)
+        self.output_layer = nn.Sequential(
+            nn.Linear(hidden_size, output_dim, device=device),
+            nn.Sigmoid(),
+        )
 
     def forward(self, batch_size=1):
         if self.xi is None:
             self.make_xi(batch_size)
 
-        v = self.H_L(self.xi[0])
-        count = 1
-        for h in self.h_l:
-            v = h(v, self.xi[count])
-            count += 1
-        return self.h_0(v[:,-1,:]), self.get_internal_state()
-
+        v = self.initial_transform(self.xi[0])
+        for i, layer in enumerate(self.gen_layers, start=1):
+            v = layer(v, self.xi[i])
+        return self.output_layer(v[:, -1, :]), self.get_internal_state()
 
     def get_internal_state(self):
-        states = []
-        for layer in self.h_l:
-            states.append(layer.get_internal_state())
-        return states
+        return [layer.get_internal_state() for layer in self.gen_layers]
 
     def set_internal_state(self, internal_state):
-        for layer, state in zip(self.h_l, internal_state, strict=False):
+        for layer, state in zip(self.gen_layers, internal_state, strict=False):
             layer.set_internal_state(state)
 
     def make_internal_state(self, batch_size=1):
-        for layer in self.h_l:
+        for layer in self.gen_layers:
             layer.make_internal_state(batch_size)
 
     def set_xi(self, xi):
         self.xi = xi
 
     def make_xi(self, batch_size=1):
-        self.xi = []
-        for _i in range(self.layers + 1):
-            self.xi.append(torch.normal(mean=torch.zeros(batch_size, self.seq_len, self.latent_dim).to(self.device), std=1)
-                           .to(self.device))
+        self.xi = [
+            torch.randn(batch_size, self.seq_len, self.latent_dim, device=self.device)
+            for _ in range(self.layers + 1)
+        ]
 
 
-########################################################
-########################Recognition#######################
-########################################################
+# ── Recognition ───────────────────────────────────────────────────────────────
+
 
 class RecLayer(nn.Module):
-
-    
     def __init__(self, input_dim=1, latent_dim=1, device=None):
         super().__init__()
-        self.latent_dim=latent_dim
-        self.input_dim=input_dim
+        self.latent_dim = latent_dim
+        self.input_dim = input_dim
         self.device = device
 
         self.d = nn.Sequential(
-                nn.Linear(self.input_dim, self.latent_dim),
-                nn.Sigmoid(),
-                nn.Linear(self.latent_dim,self.latent_dim),
-                nn.Sigmoid()).to(device)
+            nn.Linear(input_dim, latent_dim),
+            nn.Sigmoid(),
+            nn.Linear(latent_dim, latent_dim),
+            nn.Sigmoid(),
+        ).to(device)
         self.u = nn.Sequential(
-                    nn.Linear(self.input_dim, self.latent_dim),
-                    nn.Sigmoid(),
-                    nn.Linear(self.latent_dim, self.latent_dim),
-                    nn.Sigmoid()
-                ).to(device)
+            nn.Linear(input_dim, latent_dim),
+            nn.Sigmoid(),
+            nn.Linear(latent_dim, latent_dim),
+            nn.Sigmoid(),
+        ).to(device)
         self.mean = nn.Sequential(
-                    nn.Linear(self.input_dim, self.latent_dim),
-                    nn.Tanh(),
-                    nn.Linear(self.latent_dim, self.latent_dim),
-                    nn.Tanh()
-                ).to(device)
+            nn.Linear(input_dim, latent_dim),
+            nn.Tanh(),
+            nn.Linear(latent_dim, latent_dim),
+            nn.Tanh(),
+        ).to(device)
 
     def forward(self, x):
         d = self.d(x)
         u = self.u(x)
         mean = self.mean(x)
-        R = self.calculate_r(d,u)
-        z = self.calculate_z(mean,R)
+        R = self._calculate_r(d, u)
+        z = self._calculate_z(mean, R)
         return mean, R, z
 
-    
-    def calculate_z(self, mean, R):
-        v = torch.randn(mean.size()).unsqueeze(-1).to(self.device)
-        mult = torch.matmul(R, v).squeeze()
+    def _calculate_z(self, mean, R):
+        v = torch.randn(*mean.size(), 1, device=self.device)
+        mult = torch.matmul(R, v).squeeze(-1)
         return mult + mean
-    
 
-    def calculate_r(self, d, u):
-        D = torch.diag_embed(d)
+    def _calculate_r(self, d, u):
         epsilon = 1e-6
-        D_inv = torch.inverse(D)  + epsilon
-        D_in_sqr = torch.sqrt(D_inv)
+        # D is diagonal, so its inverse is just the elementwise reciprocal of d.
+        # Clamping d prevents inf when sigmoid output underflows to 0.
+        d_safe = d.clamp(min=epsilon)
+        # Adding epsilon after diag_embed ensures every element (including
+        # off-diagonals) is positive before sqrt, avoiding undefined gradients.
+        D_inv = torch.diag_embed(1.0 / d_safe) + epsilon
+        D_inv_sqrt = torch.sqrt(D_inv)
         u_r = u.unsqueeze(-1)
-        U = torch.matmul(u_r, u_r.transpose(-2,-1))
-        ut_d_inv_u = torch.matmul(u_r.transpose(-2,-1), torch.matmul(D_inv, u_r))
-        eta = 1/(1 + ut_d_inv_u)
-        right = (1 - torch.sqrt(eta)) / ut_d_inv_u
-        R = D_in_sqr - right*torch.matmul(D_inv, torch.matmul(U, D_in_sqr))
-        return R
+        U = torch.matmul(u_r, u_r.transpose(-2, -1))
+        ut_d_inv_u = torch.matmul(u_r.transpose(-2, -1), torch.matmul(D_inv, u_r))
+        eta = 1.0 / (1.0 + ut_d_inv_u)
+        # Add epsilon to denominator to guard against ut_d_inv_u ≈ 0.
+        right = (1.0 - torch.sqrt(eta)) / (ut_d_inv_u + epsilon)
+        return D_inv_sqrt - right * torch.matmul(D_inv, torch.matmul(U, D_inv_sqrt))
+
 
 class Recognition(nn.Module):
-
-
     def __init__(self, input_dim=1, latent_dim=1, layers=1, device=None):
         super().__init__()
         self.input_dim = input_dim
         self.latent_dim = latent_dim
-        self.layers=layers+1
+        self.layers = layers
         self.device = device
 
-        self.make_network()
-
-
-    def make_network(self):
-
-        self.g = nn.ModuleList()
-        for _i in range(self.layers):
-            self.g.append(RecLayer(self.input_dim, self.latent_dim, self.device).to(self.device))
-
+        self.rec_layers = nn.ModuleList(
+            RecLayer(input_dim, latent_dim, device) for _ in range(layers + 1)
+        )
 
     def forward(self, x):
-        R = []
-        mean = []
-        z = []
-        for l in self.g:
-            res = l(x)
-            R.append(res[1])
-            mean.append(res[0])
-            z.append(res[2])
-        
-        return mean, R, z
+        means, Rs, zs = [], [], []
+        for layer in self.rec_layers:
+            mean, R, z = layer(x)
+            means.append(mean)
+            Rs.append(R)
+            zs.append(z)
+        return means, Rs, zs
 
 
-
-########################################################
-##########TIME DEEP LATENT GAUSSIAN MODEL###############
-########################################################
-
+# ── tDLGM ─────────────────────────────────────────────────────────────────────
 
 
 class tDLGM(nn.Module):
-
-    def __init__(self, input_dim=1, hidden_size=1, latent_dim=1, output_dim=1, layers=1, seq_len=1, device=None):
+    def __init__(
+        self,
+        input_dim=1,
+        hidden_size=1,
+        latent_dim=1,
+        output_dim=1,
+        layers=1,
+        seq_len=1,
+        device=None,
+    ):
         super().__init__()
 
         self.model_t = TimeRecognition(input_dim, hidden_size, seq_len, layers, device)
-        self.model_g = Generator(hidden_size, latent_dim, output_dim, layers, seq_len, device)
+        self.model_g = Generator(
+            hidden_size, latent_dim, output_dim, layers, seq_len, device
+        )
         self.model_r = Recognition(input_dim, latent_dim, layers, device)
-        
+
         self.mse = nn.MSELoss()
 
+    def get_parameters(self) -> Iterator[nn.Parameter]:
+        return chain(
+            self.model_t.parameters(),
+            self.model_g.parameters(),
+            self.model_r.parameters(),
+        )
 
-    
-    def get_parameters(self)-> chain[nn.Parameter]:
-        return chain(self.model_t.parameters(), self.model_g.parameters(), self.model_r.parameters())
-
-
-
-    def _loss(self, y, y_hat, mean, R, s ,x_1, reg, was, seq_len)-> torch.Tensor:
-
-        l = self.mse(y_hat, y.squeeze()) # Why is it sum here? Should it be mean? Do not remember TODO: Check this
-        matrix_size = mean[0].size()[0]*mean[0].size()[1]
+    def _loss(self, y, y_hat, mean, R, s, t_1, reg) -> torch.Tensor:
+        # Reconstruction loss (MSE vs sum — TODO: verify which is correct)
+        target = y.reshape_as(y_hat)
+        loss = self.mse(y_hat, target)
+        matrix_size = mean[0].size(0) * mean[0].size(1)
 
         for m, r in zip(mean, R, strict=False):
-            C = r @ r.transpose(-2,-1) 
+            C = r @ r.transpose(-2, -1)
             det = C.det()
-            l += 0.5* torch.sum(m.pow(2).sum(-1) + C.diagonal(dim1=-2, dim2=-1).sum(-1) - det.log() - 1)/matrix_size
+            loss += (
+                0.5
+                * torch.sum(
+                    m.pow(2).sum(-1)
+                    + C.diagonal(dim1=-2, dim2=-1).sum(-1)
+                    - det.log()
+                    - 1
+                )
+                / matrix_size
+            )
 
+        amount = len(s) * len(s[0])
+        for a, b in zip(s, t_1, strict=False):
+            loss += reg * (self.mse(a[0], b[0]) + self.mse(a[1], b[1])) / amount
 
-        amount = len(s)*len(s[0])
-        for a, b in zip(s, x_1, strict=False):
-            l += reg*(self.mse(a[0], b[0]) + self.mse(a[1], b[1]))/amount
+        return loss
 
-        return l
-
-    
     def get_loss(self, x, x_1, y) -> float:
         return self.train_step(x, x_1, y, optimizer=None)
 
-
-
     def train_step(self, x, x_1, y, optimizer) -> float:
-
         if optimizer is not None:
             optimizer.zero_grad()
 
@@ -336,26 +314,17 @@ class tDLGM(nn.Module):
         t_1 = self.model_t(x_1)
         self.model_g.make_internal_state(x.size(0))
         self.model_g.set_internal_state(t)
-        rec = self.model_r(x_1)
-        self.model_g.set_xi(rec[2])
+        mean, R, z = self.model_r(x_1)
+        self.model_g.set_xi(z)
 
         pred, h = self.model_g(x.size(0))
 
-        loss = self._loss(y,
-                          pred,
-                          rec[0],
-                          rec[1],
-                          h,
-                          t_1,
-                          reg=0.01,
-                          was=False,
-                          seq_len=self.model_g.seq_len)
+        loss = self._loss(y, pred, mean, R, h, t_1, reg=0.01)
 
         if optimizer is not None:
             loss.backward()
             optimizer.step()
         return loss.item()
-
 
     def forward(self, x) -> torch.Tensor:
         self.model_g.make_internal_state(x.size(0))
@@ -364,32 +333,32 @@ class tDLGM(nn.Module):
         self.model_g.make_xi(x.size(0))
         val, _ = self.model_g(x.size(0))
         return val
-        
 
 
-
-
-
-########################################################
-################TEST TEST TEST #########################
-########################################################
+# ── Self-test ─────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     from torch.optim import Adam
 
-    model = tDLGM(input_dim=10, hidden_size=20, latent_dim=5, output_dim=10, layers=2, seq_len=3, device=device).to(device)
+    model = tDLGM(
+        input_dim=10,
+        hidden_size=20,
+        latent_dim=5,
+        output_dim=10,
+        layers=2,
+        seq_len=3,
+        device=device,
+    ).to(device)
     optimizer = Adam(model.get_parameters(), lr=0.1)
 
-    x = torch.randn(50,3,10).to(device) ## used for the state recognition
-    y = torch.randn(50,1,10).to(device) ## the value to be reconstructed
-    x_1 = torch.cat((x,y), dim=1)[:,1:,:] ## used for the recognition
+    x = torch.randn(50, 3, 10).to(device)  ## used for the state recognition
+    y = torch.randn(50, 1, 10).to(device)  ## the value to be reconstructed
+    x_1 = torch.cat((x, y), dim=1)[:, 1:, :]  ## used for the recognition
 
-    before = model.get_loss(x,x_1,y)
+    before = model.get_loss(x, x_1, y)
     for _i in range(300):
         loss = model.train_step(x, x_1, y, optimizer)
-    after = model.get_loss(x,x_1,y)
+    after = model.get_loss(x, x_1, y)
     print(f"Loss before training: {before}")
     print(f"Loss after training: {after}")
     assert after < before, "Loss did not decrease after training!"
-    
-
