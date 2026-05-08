@@ -127,7 +127,13 @@ class DDPG:
 
 
         # Q-values for the next states
-        if self.config["target_network"] and target_network:
+        use_target_network = (
+            self.config.get("target_network", False)
+            and target_network
+            and hasattr(self, "target_network_1")
+            and hasattr(self, "target_network_2")
+        )
+        if use_target_network:
             with torch.no_grad():
                 _, _, next_actions = self.actor(next_states_tensor)
                 next_q_1 = self.target_network_1(torch.cat((next_states_tensor, next_actions), dim=1))
