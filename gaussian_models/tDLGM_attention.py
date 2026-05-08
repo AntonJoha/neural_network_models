@@ -21,6 +21,7 @@ class AttentionTimeLayer(nn.Module):
         attn_out, _ = self.attention(h, h, h, need_weights=False)
         h = self.norm(h + attn_out)
         hidden_state = h[:, -1, :].unsqueeze(0)
+        # Keep LSTM-compatible (h, c) state shape expected by Generator.
         cell_state = torch.zeros_like(hidden_state)
         return hidden_state, cell_state
 
