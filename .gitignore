@@ -3,8 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-
+# filenames that I use that should not be inluded
 tags
+out 
 # C extensions
 *.so
 
