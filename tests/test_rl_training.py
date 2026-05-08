@@ -3,6 +3,7 @@ import unittest
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 import torch.optim as optim
 
 from RL.cddpg_agent import DDPG as CDDPGAgent
@@ -145,6 +146,145 @@ class TestRLTraining(unittest.TestCase):
         self.assertTrue(parameters_changed(actor_before, agent.actor))
         self.assertTrue(parameters_changed(critic_1_before, agent.critic_1))
         self.assertTrue(parameters_changed(critic_2_before, agent.critic_2))
+
+    def test_dqn_loss_decreases_over_epochs(self):
+        # A frozen target network provides fixed bootstrap targets, turning
+        # training into a supervised regression task that must converge.
+        config = {
+            "input": 4,
+            "output": 3,
+            "layers": [16],
+            "target_network": True,
+            "lr": 1e-2,
+            "discount": 0.95,
+            "optimizer": adam_wrapper,
+        }
+        agent = DQNAgent(config)
+        replay = ReplayBuffer(32)
+
+        for _ in range(32):
+            state = np.random.uniform(-1.0, 1.0, size=(4,)).astype(np.float32)
+            action = int(np.random.randint(0, 3))
+            reward = float(np.random.uniform(-1.0, 1.0))
+            next_state = (state + np.random.normal(0.0, 0.1, size=(4,))).astype(np.float32)
+            replay.add([state, action, reward, next_state])
+
+        early_losses = [agent.replay(replay, batch_size=32).item() for _ in range(10)]
+        for _ in range(180):
+            agent.replay(replay, batch_size=32)
+        late_losses = [agent.replay(replay, batch_size=32).item() for _ in range(10)]
+        early_avg = sum(early_losses) / 10
+        late_avg = sum(late_losses) / 10
+        self.assertLess(late_avg, early_avg)
+
+    def _build_ddpg_replay(self, state_dim, action_dim, n=32):
+        states = np.random.uniform(-1.0, 1.0, size=(n, state_dim)).astype(np.float32)
+        actions = np.random.uniform(-1.0, 1.0, size=(n, action_dim)).astype(np.float32)
+        rewards = np.random.uniform(-1.0, 1.0, size=(n,)).astype(np.float32)
+        next_states = (states + np.random.normal(0.0, 0.1, size=(n, state_dim))).astype(np.float32)
+        replay = ReplayBuffer(n)
+        for i in range(n):
+            replay.add([states[i], actions[i], float(rewards[i]), next_states[i]])
+        states_t = torch.tensor(states, dtype=torch.float)
+        actions_t = torch.tensor(actions, dtype=torch.float).view(-1, action_dim)
+        rewards_t = torch.tensor(rewards, dtype=torch.float).view(-1, 1)
+        next_states_t = torch.tensor(next_states, dtype=torch.float)
+        return replay, states_t, actions_t, rewards_t, next_states_t
+
+    def _ddpg_critic_loss(self, agent, states_t, actions_t, fixed_targets):
+        with torch.no_grad():
+            q = agent.get_q_value(states_t, actions_t)
+        return F.mse_loss(q, fixed_targets).item()
+
+    def test_ddpg_loss_decreases_over_epochs(self):
+        # actor_lr=0 freezes the actor; target_network=True freezes the bootstrap
+        # critic.  Together they give a fixed supervised regression task for the
+        # critic that is guaranteed to converge.
+        config = {
+            "input": 3,
+            "output": 1,
+            "q_layers": [16],
+            "layers": [16],
+            "target_network": True,
+            "actor_lr": 0.0,
+            "critic_lr": 1e-2,
+            "discount": 0.95,
+            "optimizer": adam_wrapper,
+        }
+        agent = DDPGAgent(config)
+        replay, states_t, actions_t, rewards_t, next_states_t = self._build_ddpg_replay(3, 1)
+
+        with torch.no_grad():
+            next_actions = agent.select_action(next_states_t)
+            next_q = agent.get_q_value(next_states_t, next_actions, target_network=True)
+            fixed_targets = (rewards_t + config["discount"] * next_q).clone()
+
+        initial_loss = self._ddpg_critic_loss(agent, states_t, actions_t, fixed_targets)
+        for _ in range(200):
+            agent.train(replay, batch_size=32)
+        final_loss = self._ddpg_critic_loss(agent, states_t, actions_t, fixed_targets)
+        self.assertLess(final_loss, initial_loss)
+
+    def test_cddpg_loss_decreases_over_epochs(self):
+        config = {
+            "input": 3,
+            "output": 1,
+            "q_layers": [16],
+            "layers": [16],
+            "target_network": True,
+            "actor_lr": 0.0,
+            "critic_lr": 1e-2,
+            "discount": 0.95,
+            "optimizer": adam_wrapper,
+        }
+        agent = CDDPGAgent(config)
+        replay, states_t, actions_t, rewards_t, next_states_t = self._build_ddpg_replay(3, 1)
+
+        with torch.no_grad():
+            next_actions = agent.select_action(next_states_t)
+            next_q = agent.get_q_value(next_states_t, next_actions, target_network=True)
+            fixed_targets = (rewards_t + config["discount"] * next_q).clone()
+
+        initial_loss = self._ddpg_critic_loss(agent, states_t, actions_t, fixed_targets)
+        for _ in range(200):
+            agent.train(replay, batch_size=32)
+        final_loss = self._ddpg_critic_loss(agent, states_t, actions_t, fixed_targets)
+        self.assertLess(final_loss, initial_loss)
+
+    def test_sac_loss_decreases_over_epochs(self):
+        # actor_lr=0 freezes the actor; target_network=True freezes the bootstrap
+        # critics.  Together they give a fixed supervised regression task for both
+        # critics that is guaranteed to converge.
+        config = {
+            "input": 3,
+            "output": 1,
+            "q_layers": [16],
+            "layers": [16],
+            "target_network": True,
+            "actor_lr": 0.0,
+            "critic_lr": 1e-2,
+            "discount": 0.95,
+            "optimizer": adam_wrapper,
+        }
+        agent = SACAgent(config)
+        replay, states_t, actions_t, rewards_t, next_states_t = self._build_ddpg_replay(3, 1)
+
+        with torch.no_grad():
+            next_actions = agent.select_action(next_states_t)
+            next_q1 = agent.target_network_1(torch.cat((next_states_t, next_actions), dim=1))
+            next_q2 = agent.target_network_2(torch.cat((next_states_t, next_actions), dim=1))
+            fixed_targets = (rewards_t + config["discount"] * torch.min(next_q1, next_q2)).clone()
+
+        def critic1_loss():
+            with torch.no_grad():
+                q1 = agent.critic_1(torch.cat((states_t, actions_t), dim=1))
+            return F.mse_loss(q1, fixed_targets).item()
+
+        initial_loss = critic1_loss()
+        for _ in range(200):
+            agent.replay(replay, batch_size=32)
+        final_loss = critic1_loss()
+        self.assertLess(final_loss, initial_loss)
 
 
 if __name__ == "__main__":
