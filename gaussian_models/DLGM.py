@@ -56,7 +56,7 @@ class RecLayer(nn.Module):
     def calculate_r(self, d, u):
         epsilon = 1e-6
         d_safe = d.clamp(min=epsilon)
-        D_inv = torch.diag_embed(1.0 / d_safe) + epsilon
+        D_inv = torch.diag_embed(1.0 / d_safe)
         D_inv_sqrt = torch.sqrt(D_inv)
         u_r = u.unsqueeze(-1)
         U = torch.matmul(u_r, u_r.transpose(-2,-1))
@@ -111,8 +111,6 @@ class GenLayer(nn.Module):
         self.latent_dim=latent_dim
         self.seq_len=seq_len
         self.device=device
-        self.internal_state = None
-
         self.t = nn.Sequential(
             nn.Linear(in_features=self.hidden_size,
                             out_features=self.hidden_size,device=device),
@@ -131,10 +129,6 @@ class GenLayer(nn.Module):
                             out_features=self.hidden_size,
                             device=self.device),
             nn.LeakyReLU()).to(self.device)
-
-
-    def get_internal_state(self):
-        return self.internal_state
 
     # Adding the noise and previous layer
     def forward(self, h, xi):
@@ -310,4 +304,3 @@ if __name__ == "__main__":
     print(f"Loss before training: {before}")
     print(f"Loss after training: {after}")
     assert after < before, "Loss did not decrease after training! MSELoss"
-
