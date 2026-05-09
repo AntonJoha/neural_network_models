@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 EPS = 1e-6
 
 
@@ -14,7 +15,8 @@ class VRNN(nn.Module):
         output_dim=1,
         layers=1,
         seq_len=1,
-        device=None,
+        device=device,
+        activation_function=nn.ReLU,
     ):
         super().__init__()
         self.input_dim = input_dim
@@ -24,21 +26,20 @@ class VRNN(nn.Module):
         self.layers = layers
         self.seq_len = seq_len
         self.device = device
-        if self.seq_len < 1:
-            raise ValueError("seq_len must be at least 1")
+        self.activation_function = activation_function
 
         self.phi_x = nn.Sequential(
             nn.Linear(input_dim, hidden_size, device=device),
-            nn.ReLU(),
+            activation_function(),
         )
         self.phi_z = nn.Sequential(
             nn.Linear(latent_dim, hidden_size, device=device),
-            nn.ReLU(),
+            activation_function(),
         )
 
         self.enc = nn.Sequential(
             nn.Linear(hidden_size + hidden_size, hidden_size, device=device),
-            nn.ReLU(),
+            activation_function(),
         )
         self.enc_mean = nn.Linear(hidden_size, latent_dim, device=device)
         self.enc_std = nn.Sequential(
@@ -48,7 +49,7 @@ class VRNN(nn.Module):
 
         self.prior = nn.Sequential(
             nn.Linear(hidden_size, hidden_size, device=device),
-            nn.ReLU(),
+            activation_function(),
         )
         self.prior_mean = nn.Linear(hidden_size, latent_dim, device=device)
         self.prior_std = nn.Sequential(
@@ -58,7 +59,7 @@ class VRNN(nn.Module):
 
         self.dec = nn.Sequential(
             nn.Linear(hidden_size + hidden_size, hidden_size, device=device),
-            nn.ReLU(),
+            activation_function(),
         )
         self.dec_mean = nn.Linear(hidden_size, output_dim, device=device)
 
@@ -98,8 +99,6 @@ class VRNN(nn.Module):
 
     def _forward_sequence(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         batch_size, seq_len, _ = x.shape
-        if seq_len < 1:
-            raise ValueError("Input sequence length must be at least 1")
         h = torch.zeros(self.layers, batch_size, self.hidden_size, device=x.device, dtype=x.dtype)
 
         kld_loss = torch.zeros((), device=x.device, dtype=x.dtype)
@@ -145,12 +144,7 @@ class VRNN(nn.Module):
 
     def get_loss(self, _x, x_1, y) -> float:
         with torch.no_grad():
-            self._validate_batch_dimensions(x_1, y)
             return self._compute_loss(x_1, y).item()
-
-    def _validate_batch_dimensions(self, x_1: torch.Tensor, y: torch.Tensor) -> None:
-        if x_1.size(0) != y.size(0):
-            raise ValueError("x_1 and y must have the same batch size")
 
     def _compute_loss(self, x_1: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         kld_loss, decoded = self._forward_sequence(x_1)
@@ -161,7 +155,6 @@ class VRNN(nn.Module):
         if optimizer is not None:
             optimizer.zero_grad()
 
-        self._validate_batch_dimensions(x_1, y)
         loss = self._compute_loss(x_1, y)
 
         if optimizer is not None:
