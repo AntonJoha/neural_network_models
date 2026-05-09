@@ -3,6 +3,7 @@ import torch.nn as nn
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+DEFAULT_DEVICE = device
 EPS = 1e-6
 
 
@@ -15,10 +16,17 @@ class VRNN(nn.Module):
         output_dim=1,
         layers=1,
         seq_len=1,
-        device=device,
+        device=None,
         activation_function=nn.ReLU,
     ):
+        """Create a VRNN.
+
+        activation_function should be a callable that returns an nn.Module
+        (for example nn.ReLU, nn.LeakyReLU).
+        """
         super().__init__()
+        if device is None:
+            device = DEFAULT_DEVICE
         self.input_dim = input_dim
         self.hidden_size = hidden_size
         self.latent_dim = latent_dim
