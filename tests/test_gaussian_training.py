@@ -27,6 +27,7 @@ class TestDLGMTraining(unittest.TestCase):
         self.optimizer = optim.Adam(self.model.get_parameters(), lr=1e-1)
         self.x = torch.randn(16, 3, 4)
         self.y = torch.randn(16, 1, 4)
+        # x_1 is the one-step-shifted sequence used by recognition/training.
         self.x_1 = torch.cat((self.x, self.y), dim=1)[:, 1:, :]
 
     def test_dlmg_parameters_change(self):

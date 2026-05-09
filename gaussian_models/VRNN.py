@@ -1,10 +1,7 @@
-from collections.abc import Iterator
-
 import torch
 import torch.nn as nn
 
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 EPS = 1e-6
 
 
@@ -27,6 +24,8 @@ class VRNN(nn.Module):
         self.layers = layers
         self.seq_len = seq_len
         self.device = device
+        if self.seq_len < 1:
+            raise ValueError("seq_len must be at least 1")
 
         self.phi_x = nn.Sequential(
             nn.Linear(input_dim, hidden_size, device=device),
@@ -68,11 +67,12 @@ class VRNN(nn.Module):
             hidden_size=hidden_size,
             num_layers=layers,
             batch_first=True,
+            device=device,
         )
 
-        self.mse = nn.MSELoss()
+        self.mse = nn.MSELoss().to(device) if device is not None else nn.MSELoss()
 
-    def get_parameters(self) -> Iterator[nn.Parameter]:
+    def get_parameters(self):
         return self.parameters()
 
     def _reparameterized_sample(self, mean: torch.Tensor, std: torch.Tensor) -> torch.Tensor:
@@ -98,6 +98,8 @@ class VRNN(nn.Module):
 
     def _forward_sequence(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         batch_size, seq_len, _ = x.shape
+        if seq_len < 1:
+            raise ValueError("Input sequence length must be at least 1")
         h = torch.zeros(self.layers, batch_size, self.hidden_size, device=x.device, dtype=x.dtype)
 
         kld_loss = torch.zeros((), device=x.device, dtype=x.dtype)
@@ -138,20 +140,29 @@ class VRNN(nn.Module):
     ) -> torch.Tensor:
         target = y.reshape_as(y_hat)
         recon = self.mse(y_hat, target)
-        kld = kld_loss / (batch_size * max(seq_len, 1))
+        kld = kld_loss / (batch_size * seq_len)
         return recon + kld
 
-    def get_loss(self, x, x_1, y) -> float:
+    def get_loss(self, _x, x_1, y) -> float:
         with torch.no_grad():
-            return self.train_step(x, x_1, y, optimizer=None)
+            self._validate_batch_dimensions(x_1, y)
+            return self._compute_loss(x_1, y).item()
 
-    def train_step(self, x, x_1, y, optimizer) -> float:
+    def _validate_batch_dimensions(self, x_1: torch.Tensor, y: torch.Tensor) -> None:
+        if x_1.size(0) != y.size(0):
+            raise ValueError("x_1 and y must have the same batch size")
+
+    def _compute_loss(self, x_1: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        kld_loss, decoded = self._forward_sequence(x_1)
+        pred = decoded[:, -1, :].unsqueeze(1)
+        return self._loss(y, pred, kld_loss, x_1.size(0), x_1.size(1))
+
+    def train_step(self, _x, x_1, y, optimizer) -> float:
         if optimizer is not None:
             optimizer.zero_grad()
 
-        kld_loss, decoded = self._forward_sequence(x_1)
-        pred = decoded[:, -1, :].unsqueeze(1)
-        loss = self._loss(y, pred, kld_loss, x_1.size(0), x_1.size(1))
+        self._validate_batch_dimensions(x_1, y)
+        loss = self._compute_loss(x_1, y)
 
         if optimizer is not None:
             loss.backward()
