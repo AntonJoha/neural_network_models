@@ -3,9 +3,9 @@ import unittest
 import torch
 import torch.optim as optim
 
+from gaussian_models.DLGM import DLGM
 from gaussian_models.tDLGM import tDLGM
 from gaussian_models.tDLGM_attention import tDLGMAttention
-from gaussian_models.DLGM import DLGM
 
 
 def clone_parameters(module):

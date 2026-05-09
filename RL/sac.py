@@ -104,7 +104,7 @@ class DDPG:
     
     
     def select_action(self, state, entropy=False):
-        state_tensor = torch.tensor(state, device=device)
+        state_tensor = torch.as_tensor(state, device=device)
         with torch.no_grad():
             if entropy:
                 return self.actor(state_tensor)[2]

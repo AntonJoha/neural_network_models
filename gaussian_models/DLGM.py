@@ -1,8 +1,8 @@
-import torch.nn as nn
-import torch
 from collections.abc import Iterator
 from itertools import chain
 
+import torch
+import torch.nn as nn
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 DEFAULT_EPSILON = 1e-6

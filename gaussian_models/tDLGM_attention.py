@@ -1,9 +1,7 @@
 import torch
 import torch.nn as nn
 
-from .tDLGM import tDLGM, device, tDLGMCrossEntropy
-
-
+from .tDLGM import device, tDLGM, tDLGMCrossEntropy
 
 # ── Time Recognition ──────────────────────────────────────────────────────────
 
