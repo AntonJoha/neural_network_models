@@ -57,7 +57,7 @@ def tdlgm_kl_term(
         if use_stable_logdet:
             _, logdet = torch.linalg.slogdet(c + epsilon * eye)
         else:
-            logdet = c.det().clamp(min=epsilon).log()
+            _, logdet = torch.linalg.slogdet(c)
 
         kl = kl + (
             0.5
