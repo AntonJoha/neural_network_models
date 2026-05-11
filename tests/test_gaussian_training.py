@@ -4,9 +4,9 @@ import torch
 import torch.optim as optim
 
 from gaussian_models.DLGM import DLGM
-from gaussian_models.VRNN import VRNN
 from gaussian_models.tDLGM import tDLGM
 from gaussian_models.tDLGM_attention import tDLGMAttention
+from gaussian_models.VRNN import VRNN
 
 
 def clone_parameters(module):

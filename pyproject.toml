@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "neural-network-models"
 version = "0.1.0"
-description = "Reinforcement learning agents (DQN, DDPG, SAC) and generative models (tDLGM)"
+description = "Reinforcement learning agents and VAE-inspired generative models (DLGM/tDLGM/VRNN variants)"
 readme = "README.md"
 license = { file = "LICENSE" }
 authors = [{ name = "Anton Johansson" }]

@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 
-
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 DEFAULT_DEVICE = device
 EPS = 1e-6
