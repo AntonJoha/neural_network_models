@@ -53,10 +53,11 @@ def tdlgm_kl_term(
 
     for m, r in zip(mean, r_factors, strict=True):
         c = r @ r.transpose(-2, -1)
+        epsilon = max(EPS, torch.finfo(c.dtype).eps)
         if use_stable_logdet:
-            _, logdet = torch.linalg.slogdet(c + EPS * eye)
+            _, logdet = torch.linalg.slogdet(c + epsilon * eye)
         else:
-            logdet = c.det().clamp(min=EPS).log()
+            logdet = c.det().clamp(min=epsilon).log()
 
         kl = kl + (
             0.5
