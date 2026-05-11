@@ -41,10 +41,10 @@ class TestVAEVariantsTraining(unittest.TestCase):
         before = clone_parameters(model)
         if condition is None:
             loss = model.train_step(self.x, self.x_1, self.y, optimizer)
-            pred = model.forward(self.x_1)
+            pred = model.forward(self.x)
         else:
             loss = model.train_step(self.x, self.x_1, self.y, optimizer, condition=condition)
-            pred = model.forward(self.x_1, condition=condition)
+            pred = model.forward(self.x, condition=condition)
         self.assertIsInstance(loss, float)
         self.assertTrue(parameters_changed(before, model))
         self.assertEqual(pred.size(0), self.y.size(0))

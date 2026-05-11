@@ -83,25 +83,25 @@ class ConditionalVRNN(VRNN):
             )
         return torch.cat([x, condition], dim=-1)
 
-    def get_loss(self, _x, x_1, y, condition: torch.Tensor | None = None) -> float:
+    def get_loss(self, x, _x_1, y, condition: torch.Tensor | None = None) -> float:
         with torch.no_grad():
-            return self._loss_from_forward_pass(x_1, y, condition).item()
+            return self._loss_from_forward_pass(x, y, condition).item()
 
     def _loss_from_forward_pass(
         self,
-        x_1: torch.Tensor,
+        x: torch.Tensor,
         y: torch.Tensor,
         condition: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        conditioned = self._conditioned(x_1, condition)
+        conditioned = self._conditioned(x, condition)
         kld_loss, decoded = self._forward_sequence(conditioned)
         pred = decoded[:, -1, :].unsqueeze(1)
         return self._loss(y, pred, kld_loss, conditioned.size(0), conditioned.size(1))
 
-    def train_step(self, _x, x_1, y, optimizer, condition: torch.Tensor | None = None) -> float:
+    def train_step(self, x, _x_1, y, optimizer, condition: torch.Tensor | None = None) -> float:
         if optimizer is not None:
             optimizer.zero_grad()
-        loss = self._loss_from_forward_pass(x_1, y, condition)
+        loss = self._loss_from_forward_pass(x, y, condition)
 
         if optimizer is not None:
             loss.backward()
@@ -298,26 +298,26 @@ class KalmanVAE(nn.Module):
 
         return torch.stack(states, dim=1), torch.stack(obs_means, dim=1), torch.stack(obs_stds, dim=1), torch.stack(preds, dim=1)
 
-    def _loss_from_forward_pass(self, x_1: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        states, obs_means, obs_stds, preds = self._filter(x_1)
+    def _loss_from_forward_pass(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        states, obs_means, obs_stds, preds = self._filter(x)
         pred_y = self.decoder(states[:, -1, :]).unsqueeze(1)
         target = y.reshape_as(pred_y)
 
         recon = self.mse(pred_y, target)
         prior_mean = preds.detach()
         prior_std = torch.ones_like(obs_stds)
-        dyn_kl = diag_kl(obs_means, obs_stds, prior_mean, prior_std) / (x_1.size(0) * x_1.size(1))
-        trans_reg = self.mse(states[:, 1:, :], preds[:, 1:, :]) if x_1.size(1) > 1 else torch.zeros((), device=x_1.device, dtype=x_1.dtype)
+        dyn_kl = diag_kl(obs_means, obs_stds, prior_mean, prior_std) / (x.size(0) * x.size(1))
+        trans_reg = self.mse(states[:, 1:, :], preds[:, 1:, :]) if x.size(1) > 1 else torch.zeros((), device=x.device, dtype=x.dtype)
         return recon + dyn_kl + 0.1 * trans_reg
 
-    def get_loss(self, _x, x_1, y) -> float:
+    def get_loss(self, x, _x_1, y) -> float:
         with torch.no_grad():
-            return self._loss_from_forward_pass(x_1, y).item()
+            return self._loss_from_forward_pass(x, y).item()
 
-    def train_step(self, _x, x_1, y, optimizer) -> float:
+    def train_step(self, x, _x_1, y, optimizer) -> float:
         if optimizer is not None:
             optimizer.zero_grad()
-        loss = self._loss_from_forward_pass(x_1, y)
+        loss = self._loss_from_forward_pass(x, y)
 
         if optimizer is not None:
             loss.backward()
@@ -415,20 +415,20 @@ class SRNN(nn.Module):
 
         return kld_loss, torch.stack(decoded, dim=1)
 
-    def _loss_from_forward_pass(self, x_1: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        kld, decoded = self._forward_sequence(x_1)
+    def _loss_from_forward_pass(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        kld, decoded = self._forward_sequence(x)
         pred = decoded[:, -1, :].unsqueeze(1)
         recon = self.mse(pred, y.reshape_as(pred))
-        return recon + kld / (x_1.size(0) * x_1.size(1))
+        return recon + kld / (x.size(0) * x.size(1))
 
-    def get_loss(self, _x, x_1, y) -> float:
+    def get_loss(self, x, _x_1, y) -> float:
         with torch.no_grad():
-            return self._loss_from_forward_pass(x_1, y).item()
+            return self._loss_from_forward_pass(x, y).item()
 
-    def train_step(self, _x, x_1, y, optimizer) -> float:
+    def train_step(self, x, _x_1, y, optimizer) -> float:
         if optimizer is not None:
             optimizer.zero_grad()
-        loss = self._loss_from_forward_pass(x_1, y)
+        loss = self._loss_from_forward_pass(x, y)
 
         if optimizer is not None:
             loss.backward()
