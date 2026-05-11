@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from itertools import chain
 
 import torch
 import torch.nn as nn
@@ -9,7 +8,6 @@ import torch.nn as nn
 from .DLGM import DLGM
 from .tDLGM import tDLGM
 from .VRNN import EPS, VRNN
-
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

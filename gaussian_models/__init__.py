@@ -1,13 +1,13 @@
 from .tDLGM import tDLGM
 from .vae_variants import (
+    IWAEVRNN,
+    NFVRNN,
+    SRNN,
     BetaDLGM,
     BetatDLGM,
     ConditionalVRNN,
-    IWAEVRNN,
     KalmanVAE,
     LadderVAE,
-    NFVRNN,
-    SRNN,
 )
 
 __all__ = [
