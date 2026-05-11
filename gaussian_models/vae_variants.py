@@ -51,11 +51,10 @@ class BetaDLGM(DLGM):
         matrix_size = mean[0].size(0) * mean[0].size(1)
 
         kl = torch.zeros((), device=y_hat.device, dtype=y_hat.dtype)
-        eye = None
+        c0 = R[0] @ R[0].transpose(-2, -1)
+        eye = torch.eye(c0.size(-1), device=c0.device, dtype=c0.dtype)
         for m, r in zip(mean, R, strict=True):
             c = r @ r.transpose(-2, -1)
-            if eye is None or eye.size(-1) != c.size(-1) or eye.device != c.device or eye.dtype != c.dtype:
-                eye = torch.eye(c.size(-1), device=c.device, dtype=c.dtype)
             eye_expanded = eye.expand_as(c)
             _, logdet = torch.linalg.slogdet(c + epsilon * eye_expanded)
             kl = kl + (
