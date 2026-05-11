@@ -51,10 +51,13 @@ class BetaDLGM(DLGM):
         matrix_size = mean[0].size(0) * mean[0].size(1)
 
         kl = torch.zeros((), device=y_hat.device, dtype=y_hat.dtype)
-        for m, r in zip(mean, R, strict=False):
+        eye = None
+        for m, r in zip(mean, R, strict=True):
             c = r @ r.transpose(-2, -1)
-            eye = torch.eye(c.size(-1), device=c.device, dtype=c.dtype).expand_as(c)
-            _, logdet = torch.linalg.slogdet(c + epsilon * eye)
+            if eye is None or eye.size(-1) != c.size(-1) or eye.device != c.device or eye.dtype != c.dtype:
+                eye = torch.eye(c.size(-1), device=c.device, dtype=c.dtype)
+            eye_expanded = eye.expand_as(c)
+            _, logdet = torch.linalg.slogdet(c + epsilon * eye_expanded)
             kl = kl + (
                 0.5
                 * torch.sum(
@@ -79,7 +82,7 @@ class BetatDLGM(tDLGM):
         matrix_size = mean[0].size(0) * mean[0].size(1)
 
         kl = torch.zeros((), device=y_hat.device, dtype=y_hat.dtype)
-        for m, r in zip(mean, R, strict=False):
+        for m, r in zip(mean, R, strict=True):
             c = r @ r.transpose(-2, -1)
             det = c.det().clamp(min=EPS)
             kl = kl + (
@@ -95,7 +98,7 @@ class BetatDLGM(tDLGM):
 
         state_reg = torch.zeros((), device=y_hat.device, dtype=y_hat.dtype)
         amount = len(s) * len(s[0])
-        for a, b in zip(s, t_1, strict=False):
+        for a, b in zip(s, t_1, strict=True):
             state_reg = state_reg + reg * (self.mse(a[0], b[0]) + self.mse(a[1], b[1])) / amount
 
         return recon + self.beta * kl + state_reg
