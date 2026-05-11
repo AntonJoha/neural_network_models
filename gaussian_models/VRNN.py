@@ -1,9 +1,10 @@
 import torch
 import torch.nn as nn
 
+from .utils import EPS, diag_kl, reparameterized_sample
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 DEFAULT_DEVICE = device
-EPS = 1e-6
 
 
 class VRNN(nn.Module):
@@ -84,8 +85,7 @@ class VRNN(nn.Module):
         return self.parameters()
 
     def _reparameterized_sample(self, mean: torch.Tensor, std: torch.Tensor) -> torch.Tensor:
-        eps = torch.randn_like(std)
-        return mean + eps * std
+        return reparameterized_sample(mean, std)
 
     def _kld_gauss(
         self,
@@ -94,15 +94,7 @@ class VRNN(nn.Module):
         mean_prior: torch.Tensor,
         std_prior: torch.Tensor,
     ) -> torch.Tensor:
-        post_var = std_post.pow(2) + EPS
-        prior_var = std_prior.pow(2) + EPS
-        kld = (
-            torch.log(prior_var)
-            - torch.log(post_var)
-            + (post_var + (mean_post - mean_prior).pow(2)) / prior_var
-            - 1.0
-        )
-        return 0.5 * torch.sum(kld)
+        return diag_kl(mean_post, std_post, mean_prior, std_prior)
 
     def _forward_sequence(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         batch_size, seq_len, _ = x.shape

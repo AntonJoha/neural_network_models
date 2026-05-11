@@ -2,8 +2,6 @@
 
 A Python library of neural network models for reference and quick reuse.
 
-**BEWARE** I am using this to test how well GitHub Copilot works. So it is _heavily_ generated.
-
 ## Included model families
 
 - Reinforcement learning agents: DQN, DDPG, CDDPG, SAC

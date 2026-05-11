@@ -7,35 +7,17 @@ import torch.nn as nn
 
 from .DLGM import DLGM
 from .tDLGM import tDLGM
-from .VRNN import EPS, VRNN
+from .VRNN import VRNN
+from .utils import (
+    EPS,
+    diag_kl,
+    gaussian_log_prob,
+    reparameterized_sample,
+    tdlgm_kl_term,
+    tdlgm_state_regularization,
+)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
-def _diag_kl(
-    mean_post: torch.Tensor,
-    std_post: torch.Tensor,
-    mean_prior: torch.Tensor,
-    std_prior: torch.Tensor,
-) -> torch.Tensor:
-    post_var = std_post.pow(2) + EPS
-    prior_var = std_prior.pow(2) + EPS
-    kld = (
-        torch.log(prior_var)
-        - torch.log(post_var)
-        + (post_var + (mean_post - mean_prior).pow(2)) / prior_var
-        - 1.0
-    )
-    return 0.5 * torch.sum(kld)
-
-
-def _gaussian_log_prob(z: torch.Tensor, mean: torch.Tensor, std: torch.Tensor) -> torch.Tensor:
-    var = std.pow(2) + EPS
-    return -0.5 * (
-        torch.log(2 * torch.pi * var)
-        + (z - mean).pow(2) / var
-    ).sum(dim=-1)
-
 
 class BetaDLGM(DLGM):
     def __init__(self, *args, beta: float = 2.0, **kwargs):
@@ -43,28 +25,9 @@ class BetaDLGM(DLGM):
         self.beta = beta
 
     def _loss(self, y, y_hat, mean, R) -> torch.Tensor:
-        epsilon = max(1e-6, torch.finfo(y_hat.dtype).eps)
-        if y.numel() != y_hat.numel():
-            raise ValueError(f"Target shape {tuple(y.shape)} is incompatible with prediction shape {tuple(y_hat.shape)}")
         target = y.reshape_as(y_hat)
         recon = self.mse(y_hat, target)
-        matrix_size = mean[0].size(0) * mean[0].size(1)
-
-        kl = torch.zeros((), device=y_hat.device, dtype=y_hat.dtype)
-        eye = torch.eye(R[0].size(-1), device=R[0].device, dtype=R[0].dtype).expand_as(R[0])
-        for m, r in zip(mean, R, strict=True):
-            c = r @ r.transpose(-2, -1)
-            _, logdet = torch.linalg.slogdet(c + epsilon * eye)
-            kl = kl + (
-                0.5
-                * torch.sum(
-                    m.pow(2).sum(-1)
-                    + c.diagonal(dim1=-2, dim2=-1).sum(-1)
-                    - logdet
-                    - 1
-                )
-                / matrix_size
-            )
+        kl = tdlgm_kl_term(mean, R, use_stable_logdet=True)
         return recon + self.beta * kl
 
 
@@ -76,28 +39,8 @@ class BetatDLGM(tDLGM):
     def _loss(self, y, y_hat, mean, R, s, t_1, reg) -> torch.Tensor:
         target = y.reshape_as(y_hat)
         recon = self.mse(y_hat, target)
-        matrix_size = mean[0].size(0) * mean[0].size(1)
-
-        kl = torch.zeros((), device=y_hat.device, dtype=y_hat.dtype)
-        for m, r in zip(mean, R, strict=True):
-            c = r @ r.transpose(-2, -1)
-            det = c.det().clamp(min=EPS)
-            kl = kl + (
-                0.5
-                * torch.sum(
-                    m.pow(2).sum(-1)
-                    + c.diagonal(dim1=-2, dim2=-1).sum(-1)
-                    - det.log()
-                    - 1
-                )
-                / matrix_size
-            )
-
-        state_reg = torch.zeros((), device=y_hat.device, dtype=y_hat.dtype)
-        amount = len(s) * len(s[0])
-        for a, b in zip(s, t_1, strict=True):
-            state_reg = state_reg + reg * (self.mse(a[0], b[0]) + self.mse(a[1], b[1])) / amount
-
+        kl = tdlgm_kl_term(mean, R, use_stable_logdet=False)
+        state_reg = tdlgm_state_regularization(s, t_1, self.mse, reg)
         return recon + self.beta * kl + state_reg
 
 
@@ -147,8 +90,10 @@ class ConditionalVRNN(VRNN):
     def train_step(self, _x, x_1, y, optimizer, condition: torch.Tensor | None = None) -> float:
         if optimizer is not None:
             optimizer.zero_grad()
-
-        loss = self._compute_loss(self._conditioned(x_1, condition), y)
+        conditioned = self._conditioned(x_1, condition)
+        kld_loss, decoded = self._forward_sequence(conditioned)
+        pred = decoded[:, -1, :].unsqueeze(1)
+        loss = self._loss(y, pred, kld_loss, conditioned.size(0), conditioned.size(1))
 
         if optimizer is not None:
             loss.backward()
@@ -229,10 +174,6 @@ class LadderVAE(nn.Module):
     def get_parameters(self) -> Iterator[nn.Parameter]:
         return self.parameters()
 
-    @staticmethod
-    def _sample(mean: torch.Tensor, std: torch.Tensor) -> torch.Tensor:
-        return mean + torch.randn_like(std) * std
-
     def _encode(self, x: torch.Tensor):
         h1 = self.enc1(x)
         mean1 = self.enc1_mean(h1)
@@ -242,7 +183,7 @@ class LadderVAE(nn.Module):
         mean2 = self.enc2_mean(h2)
         std2 = self.enc2_std(h2) + EPS
 
-        z2 = self._sample(mean2, std2)
+        z2 = reparameterized_sample(mean2, std2)
         p1 = self.prior1(z2)
         prior1_mean = self.prior1_mean(p1)
         prior1_std = self.prior1_std(p1) + EPS
@@ -252,7 +193,7 @@ class LadderVAE(nn.Module):
         post_var1 = 1.0 / (1.0 / enc_var1 + 1.0 / prior_var1)
         post_mean1 = post_var1 * (mean1 / enc_var1 + prior1_mean / prior_var1)
         post_std1 = torch.sqrt(post_var1 + EPS)
-        z1 = self._sample(post_mean1, post_std1)
+        z1 = reparameterized_sample(post_mean1, post_std1)
 
         return z1, z2, post_mean1, post_std1, prior1_mean, prior1_std, mean2, std2
 
@@ -265,8 +206,8 @@ class LadderVAE(nn.Module):
         recon = self.mse(pred, target)
         prior2_mean = torch.zeros_like(mean2)
         prior2_std = torch.ones_like(std2)
-        kl2 = _diag_kl(mean2, std2, prior2_mean, prior2_std)
-        kl1 = _diag_kl(post_mean1, post_std1, prior1_mean, prior1_std)
+        kl2 = diag_kl(mean2, std2, prior2_mean, prior2_std)
+        kl1 = diag_kl(post_mean1, post_std1, prior1_mean, prior1_std)
         return recon + (kl1 + kl2) / x_1.size(0)
 
     def get_loss(self, _x, x_1, y) -> float:
@@ -276,7 +217,18 @@ class LadderVAE(nn.Module):
     def train_step(self, _x, x_1, y, optimizer) -> float:
         if optimizer is not None:
             optimizer.zero_grad()
-        loss = self._compute_loss(x_1, y)
+
+        x_last = x_1[:, -1, :]
+        z1, z2, post_mean1, post_std1, prior1_mean, prior1_std, mean2, std2 = self._encode(x_last)
+        pred = self.dec(torch.cat([z1, z2], dim=-1)).unsqueeze(1)
+        target = y.reshape_as(pred)
+        recon = self.mse(pred, target)
+        prior2_mean = torch.zeros_like(mean2)
+        prior2_std = torch.ones_like(std2)
+        kl2 = diag_kl(mean2, std2, prior2_mean, prior2_std)
+        kl1 = diag_kl(post_mean1, post_std1, prior1_mean, prior1_std)
+        loss = recon + (kl1 + kl2) / x_1.size(0)
+
         if optimizer is not None:
             loss.backward()
             optimizer.step()
@@ -336,7 +288,7 @@ class KalmanVAE(nn.Module):
             obs_h = self.obs_enc(x[:, t, :])
             mean_t = self.obs_mean(obs_h)
             std_t = self.obs_std(obs_h) + EPS
-            z_obs = mean_t + torch.randn_like(std_t) * std_t
+            z_obs = reparameterized_sample(mean_t, std_t)
 
             pred_state = self.transition(state)
             state = gain * z_obs + (1.0 - gain) * pred_state
@@ -356,7 +308,7 @@ class KalmanVAE(nn.Module):
         recon = self.mse(pred_y, target)
         prior_mean = preds.detach()
         prior_std = torch.ones_like(obs_stds)
-        dyn_kl = _diag_kl(obs_means, obs_stds, prior_mean, prior_std) / (x_1.size(0) * x_1.size(1))
+        dyn_kl = diag_kl(obs_means, obs_stds, prior_mean, prior_std) / (x_1.size(0) * x_1.size(1))
         trans_reg = self.mse(states[:, 1:, :], preds[:, 1:, :]) if x_1.size(1) > 1 else torch.zeros((), device=x_1.device, dtype=x_1.dtype)
         return recon + dyn_kl + 0.1 * trans_reg
 
@@ -367,7 +319,21 @@ class KalmanVAE(nn.Module):
     def train_step(self, _x, x_1, y, optimizer) -> float:
         if optimizer is not None:
             optimizer.zero_grad()
-        loss = self._compute_loss(x_1, y)
+
+        states, obs_means, obs_stds, preds = self._filter(x_1)
+        pred_y = self.decoder(states[:, -1, :]).unsqueeze(1)
+        target = y.reshape_as(pred_y)
+        recon = self.mse(pred_y, target)
+        prior_mean = preds.detach()
+        prior_std = torch.ones_like(obs_stds)
+        dyn_kl = diag_kl(obs_means, obs_stds, prior_mean, prior_std) / (x_1.size(0) * x_1.size(1))
+        trans_reg = (
+            self.mse(states[:, 1:, :], preds[:, 1:, :])
+            if x_1.size(1) > 1
+            else torch.zeros((), device=x_1.device, dtype=x_1.dtype)
+        )
+        loss = recon + dyn_kl + 0.1 * trans_reg
+
         if optimizer is not None:
             loss.backward()
             optimizer.step()
@@ -451,7 +417,7 @@ class SRNN(nn.Module):
             prior_mean = self.prior_mean(prior_h)
             prior_std = self.prior_std(prior_h) + EPS
 
-            z_t = enc_mean + torch.randn_like(enc_std) * enc_std
+            z_t = reparameterized_sample(enc_mean, enc_std)
             phi_z_t = self.phi_z(z_t)
 
             dec_t = self.dec(torch.cat([h, phi_z_t], dim=-1))
@@ -460,7 +426,7 @@ class SRNN(nn.Module):
             h = self.det_cell(torch.cat([phi_x_t, phi_z_prev], dim=-1), h)
             z_prev = z_t
 
-            kld_loss = kld_loss + _diag_kl(enc_mean, enc_std, prior_mean, prior_std)
+            kld_loss = kld_loss + diag_kl(enc_mean, enc_std, prior_mean, prior_std)
 
         return kld_loss, torch.stack(decoded, dim=1)
 
@@ -477,7 +443,12 @@ class SRNN(nn.Module):
     def train_step(self, _x, x_1, y, optimizer) -> float:
         if optimizer is not None:
             optimizer.zero_grad()
-        loss = self._compute_loss(x_1, y)
+
+        kld, decoded = self._forward_sequence(x_1)
+        pred = decoded[:, -1, :].unsqueeze(1)
+        recon = self.mse(pred, y.reshape_as(pred))
+        loss = recon + kld / (x_1.size(0) * x_1.size(1))
+
         if optimizer is not None:
             loss.backward()
             optimizer.step()
@@ -548,8 +519,8 @@ class NFVRNN(VRNN):
 
             _, h = self.rnn(torch.cat([phi_x_t, phi_z_t], dim=1).unsqueeze(1), h)
 
-            log_q0 = _gaussian_log_prob(z0_t, enc_mean_t, enc_std_t)
-            log_p = _gaussian_log_prob(z_t, prior_mean_t, prior_std_t)
+            log_q0 = gaussian_log_prob(z0_t, enc_mean_t, enc_std_t)
+            log_p = gaussian_log_prob(z_t, prior_mean_t, prior_std_t)
             kld_loss = kld_loss + torch.sum(log_q0 - log_p - log_det)
 
         return kld_loss, torch.stack(decoded, dim=1)
