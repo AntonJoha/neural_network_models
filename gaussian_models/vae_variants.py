@@ -85,18 +85,23 @@ class ConditionalVRNN(VRNN):
 
     def get_loss(self, _x, x_1, y, condition: torch.Tensor | None = None) -> float:
         with torch.no_grad():
-            return self._loss_from_forward_pass(self._conditioned(x_1, condition), y).item()
+            return self._loss_from_forward_pass(x_1, y, condition).item()
 
-    def _loss_from_forward_pass(self, x_1: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        kld_loss, decoded = self._forward_sequence(x_1)
+    def _loss_from_forward_pass(
+        self,
+        x_1: torch.Tensor,
+        y: torch.Tensor,
+        condition: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        conditioned = self._conditioned(x_1, condition)
+        kld_loss, decoded = self._forward_sequence(conditioned)
         pred = decoded[:, -1, :].unsqueeze(1)
-        return self._loss(y, pred, kld_loss, x_1.size(0), x_1.size(1))
+        return self._loss(y, pred, kld_loss, conditioned.size(0), conditioned.size(1))
 
     def train_step(self, _x, x_1, y, optimizer, condition: torch.Tensor | None = None) -> float:
         if optimizer is not None:
             optimizer.zero_grad()
-        conditioned = self._conditioned(x_1, condition)
-        loss = self._loss_from_forward_pass(conditioned, y)
+        loss = self._loss_from_forward_pass(x_1, y, condition)
 
         if optimizer is not None:
             loss.backward()

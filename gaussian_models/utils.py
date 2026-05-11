@@ -43,21 +43,17 @@ def tdlgm_kl_term(
     matrix_size = mean[0].size(0) * mean[0].size(1)
     kl = torch.zeros((), device=mean[0].device, dtype=mean[0].dtype)
 
-    eye = None
-    if use_stable_logdet:
-        eye = torch.eye(
-            r_factors[0].size(-1),
-            device=r_factors[0].device,
-            dtype=r_factors[0].dtype,
-        ).expand_as(r_factors[0])
-    epsilon = max(EPS, torch.finfo(r_factors[0].dtype).eps)
+    eye = torch.eye(
+        r_factors[0].size(-1),
+        device=r_factors[0].device,
+        dtype=r_factors[0].dtype,
+    ).expand_as(r_factors[0])
+    dtype_eps = torch.finfo(r_factors[0].dtype).eps
+    epsilon = max(EPS, dtype_eps) if use_stable_logdet else dtype_eps
 
     for m, r in zip(mean, r_factors, strict=True):
         c = r @ r.transpose(-2, -1)
-        if use_stable_logdet:
-            _, logdet = torch.linalg.slogdet(c + epsilon * eye)
-        else:
-            _, logdet = torch.linalg.slogdet(c)
+        _, logdet = torch.linalg.slogdet(c + epsilon * eye)
 
         kl = kl + (
             0.5
