@@ -14,6 +14,8 @@ from gaussian_models.vae_variants import (
     LadderVAE,
 )
 
+TEST_SEED = 7
+
 
 def clone_parameters(module):
     return [p.detach().clone() for p in module.parameters()]
@@ -28,7 +30,7 @@ def parameters_changed(before, module):
 
 class TestVAEVariantsTraining(unittest.TestCase):
     def setUp(self):
-        torch.manual_seed(7)
+        torch.manual_seed(TEST_SEED)
         self.x = torch.randn(12, 3, 4)
         self.y = torch.randn(12, 1, 4)
         self.x_1 = torch.cat((self.x, self.y), dim=1)[:, 1:, :]
