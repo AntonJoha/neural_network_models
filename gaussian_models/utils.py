@@ -50,10 +50,10 @@ def tdlgm_kl_term(
             device=r_factors[0].device,
             dtype=r_factors[0].dtype,
         ).expand_as(r_factors[0])
+    epsilon = max(EPS, torch.finfo(r_factors[0].dtype).eps)
 
     for m, r in zip(mean, r_factors, strict=True):
         c = r @ r.transpose(-2, -1)
-        epsilon = max(EPS, torch.finfo(c.dtype).eps)
         if use_stable_logdet:
             _, logdet = torch.linalg.slogdet(c + epsilon * eye)
         else:
