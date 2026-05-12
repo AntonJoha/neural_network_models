@@ -19,38 +19,37 @@ class Actor(nn.Module):
 
         for i in range(len(dims) - 1):
             self.network.append(
-                    nn.Linear(
-                        dims[i],
-                        dims[i+1],
-                        dtype=torch.float,
-                        device=device)
-                    )
+                nn.Linear(
+                    dims[i],
+                    dims[i + 1],
+                    dtype=torch.float,
+                    device=device)
+            )
 
             if "activation" not in self.config:
                 self.network.append(nn.Sigmoid())
             else:
                 self.network.append(self.config["activation"]())
         self.network.append(
-                nn.Linear(
-                    dims[-1],
-                    self.config["output"],
-                    dtype=torch.float,
-                    device=device)
-                )
+            nn.Linear(
+                dims[-1],
+                self.config["output"],
+                dtype=torch.float,
+                device=device)
+        )
 
         self.network = nn.ModuleList(self.network)
         if "activation" not in self.config:
-            self.entropy = nn.Sequential(nn.Linear(self.config["input"], dims[0]), nn.Sigmoid(), nn.Linear(dims[0],self.config["output"]), nn.Sigmoid())
+            self.entropy = nn.Sequential(nn.Linear(self.config["input"], dims[0]), nn.Sigmoid(), nn.Linear(dims[0], self.config["output"]), nn.Sigmoid())
         else:
-            self.entropy = nn.Sequential(nn.Linear(self.config["input"], dims[0]),self.config["activation"],
-                                        nn.Linear(dims[0],self.config["output"]),
+            self.entropy = nn.Sequential(nn.Linear(self.config["input"], dims[0]), self.config["activation"],
+                                         nn.Linear(dims[0], self.config["output"]),
                                          self.config["activation"]())
-
 
     def forward(self, data):
         d = data.detach().clone()
-        for l in self.network:
-            data = l(data)
+        for layer in self.network:
+            data = layer(data)
         noise = self.entropy(d)
         return data, noise, data + noise
 
@@ -66,7 +65,7 @@ class Actor(nn.Module):
 
 class DDPG:
 
-    def __init__(self,config=None):
+    def __init__(self, config=None):
 
         self.config = config
         if self.config is None:
@@ -79,12 +78,12 @@ class DDPG:
         self.critic_1 = CriticNetwork(config)
         self.critic_2 = CriticNetwork(config)
         self.optimizer_critic_1 = config["optimizer"](self.critic_1.parameters(),
-                                                    lr=config["critic_lr"],
-                                                    config=config)
+                                                      lr=config["critic_lr"],
+                                                      config=config)
 
         self.optimizer_critic_2 = config["optimizer"](self.critic_2.parameters(),
-                                                    lr=config["critic_lr"],
-                                                    config=config)
+                                                      lr=config["critic_lr"],
+                                                      config=config)
 
         if "target_network" in config and config["target_network"]:
             self.target_network_1 = CriticNetwork(config)
@@ -96,13 +95,9 @@ class DDPG:
                                                    config=config)
         self.loss_function = nn.MSELoss()
 
-        
-
     def update_lr(self, count):
         sys.exit("DO THIS")
 
-    
-    
     def select_action(self, state, entropy=False):
         state_tensor = torch.as_tensor(state, device=device)
         with torch.no_grad():
@@ -110,10 +105,8 @@ class DDPG:
                 return self.actor(state_tensor)[2]
             return self.actor(state_tensor)[0]
 
-    
-    def replay(self,replay_buffer,batch_size=128,target_network=True):
+    def replay(self, replay_buffer, batch_size=128, target_network=True):
 
- 
         if replay_buffer.buffer_size() < batch_size:
             return
 
@@ -121,11 +114,10 @@ class DDPG:
         states, actions, rewards, next_states = replay_buffer.sample(batch_size)
 
         # Convert to tensors
-        states_tensor = torch.tensor(states,dtype=torch.float,device=device)
-        actions_tensor = torch.tensor(actions,dtype=torch.float,device=device).view(-1, self.config["output"])
-        rewards_tensor = torch.tensor(rewards,dtype=torch.float,device=device).view(-1, 1)
-        next_states_tensor = torch.tensor(next_states,dtype=torch.float,device=device)
-
+        states_tensor = torch.tensor(states, dtype=torch.float, device=device)
+        actions_tensor = torch.tensor(actions, dtype=torch.float, device=device).view(-1, self.config["output"])
+        rewards_tensor = torch.tensor(rewards, dtype=torch.float, device=device).view(-1, 1)
+        next_states_tensor = torch.tensor(next_states, dtype=torch.float, device=device)
 
         # Q-values for the next states
         use_target_network = (
@@ -169,20 +161,19 @@ class DDPG:
         self.optimizer_actor.step()
 
         return (loss_1 + loss_2).detach()
- 
+
 
 if __name__ == "__main__":
 
-    
-    # Need to pass a config file. 
+    # Need to pass a config file.
     # This is done to have custom optimizers
     def adam_wrapper(parameters, lr, config):
         return optim.Adam(parameters, lr=lr)
 
-    conf = { "input": 2,
+    conf = {"input": 2,
             "output": 1,
-            "q_layers": [256,256],
-            "layers": [256,256],
+            "q_layers": [256, 256],
+            "layers": [256, 256],
             "target_network": True,
             "actor_lr": 0.1,
             "critic_lr": 0.1,
@@ -193,16 +184,15 @@ if __name__ == "__main__":
     critic = CriticNetwork(conf)
     actor = Actor(conf)
     ddpg = DDPG(conf)
- 
 
     import gymnasium as gym
     from ReplayBuffer import ReplayBuffer
 
     env = gym.make("MountainCarContinuous-v0")
 
-    state,_ = env.reset()
+    state, _ = env.reset()
     print(state)
-    action = ddpg.select_action(state,True)
+    action = ddpg.select_action(state, True)
     print(action)
     next_state, reward, terminated, truncated, info = env.step(action.detach().numpy())
 

@@ -383,9 +383,7 @@ class tDLGMCrossEntropy(tDLGM):
         return loss
 
 
-
 # ── Self-test ─────────────────────────────────────────────────────────────────
-
 if __name__ == "__main__":
     from torch.optim import Adam
 
@@ -400,9 +398,9 @@ if __name__ == "__main__":
     ).to(device)
     optimizer = Adam(model.get_parameters(), lr=0.1)
 
-    x = torch.randn(50, 3, 10).to(device)  ## used for the state recognition
-    y = torch.randn(50, 1, 10).to(device)  ## the value to be reconstructed
-    x_1 = torch.cat((x, y), dim=1)[:, 1:, :]  ## used for the recognition
+    x = torch.randn(50, 3, 10).to(device)  # used for the state recognition
+    y = torch.randn(50, 1, 10).to(device)  # the value to be reconstructed
+    x_1 = torch.cat((x, y), dim=1)[:, 1:, :]  # used for the recognition
 
     before = model.get_loss(x, x_1, y)
     for _ in range(300):
@@ -423,9 +421,9 @@ if __name__ == "__main__":
     ).to(device)
     optimizer = Adam(model.get_parameters(), lr=0.1)
 
-    x = torch.randn(50, 3, 10).to(device)  ## used for the state recognition
-    y = torch.randint(0, 10, (50, 1)).to(device)  ## the value to be reconstructed (class labels)
-    x_1 = torch.cat((x, nn.functional.one_hot(y.squeeze(), num_classes=10).float().unsqueeze(1)), dim=1)[:, 1:, :]  ## used for the recognition
+    x = torch.randn(50, 3, 10).to(device)  # used for the state recognition
+    y = torch.randint(0, 10, (50, 1)).to(device)  # the value to be reconstructed (class labels)
+    x_1 = torch.cat((x, nn.functional.one_hot(y.squeeze(), num_classes=10).float().unsqueeze(1)), dim=1)[:, 1:, :]  # used for the recognition
 
     before = model.get_loss(x, x_1, y)
     for _ in range(300):
@@ -434,5 +432,3 @@ if __name__ == "__main__":
     print(f"Loss before training: {before}")
     print(f"Loss after training: {after}")
     assert after < before, "Loss did not decrease after training! CrossEntropyLoss"
-
-
