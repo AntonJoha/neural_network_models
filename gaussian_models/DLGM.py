@@ -12,51 +12,47 @@ def epsilon_for(tensor: torch.Tensor) -> float:
     return max(DEFAULT_EPSILON, torch.finfo(tensor.dtype).eps)
 
 
-
 # ── Recognition ───────────────────────────────────────────────────────────────
 
 
 class RecLayer(nn.Module):
 
-    
     def __init__(self, input_dim=1, latent_dim=1, device=None):
         super().__init__()
-        self.latent_dim=latent_dim
-        self.input_dim=input_dim
+        self.latent_dim = latent_dim
+        self.input_dim = input_dim
         self.device = device
 
         self.d = nn.Sequential(
-                nn.Linear(self.input_dim, self.latent_dim),
-                nn.Sigmoid(),
-                nn.Linear(self.latent_dim,self.latent_dim),
-                nn.Sigmoid()).to(device)
+            nn.Linear(self.input_dim, self.latent_dim),
+            nn.Sigmoid(),
+            nn.Linear(self.latent_dim, self.latent_dim),
+            nn.Sigmoid()).to(device)
         self.u = nn.Sequential(
-                    nn.Linear(self.input_dim, self.latent_dim),
-                    nn.Sigmoid(),
-                    nn.Linear(self.latent_dim, self.latent_dim),
-                    nn.Sigmoid()
-                ).to(device)
+            nn.Linear(self.input_dim, self.latent_dim),
+            nn.Sigmoid(),
+            nn.Linear(self.latent_dim, self.latent_dim),
+            nn.Sigmoid()
+        ).to(device)
         self.mean = nn.Sequential(
-                    nn.Linear(self.input_dim, self.latent_dim),
-                    nn.Tanh(),
-                    nn.Linear(self.latent_dim, self.latent_dim),
-                    nn.Tanh()
-                ).to(device)
+            nn.Linear(self.input_dim, self.latent_dim),
+            nn.Tanh(),
+            nn.Linear(self.latent_dim, self.latent_dim),
+            nn.Tanh()
+        ).to(device)
 
     def forward(self, x):
         d = self.d(x)
         u = self.u(x)
         mean = self.mean(x)
-        R = self.calculate_r(d,u)
-        z = self.calculate_z(mean,R)
+        R = self.calculate_r(d, u)
+        z = self.calculate_z(mean, R)
         return mean, R, z
 
-    
     def calculate_z(self, mean, R):
         v = torch.randn(*mean.size(), 1, device=self.device)
         mult = torch.matmul(R, v).squeeze(-1)
         return mult + mean
-    
 
     def calculate_r(self, d, u):
         epsilon = epsilon_for(d)
@@ -64,76 +60,72 @@ class RecLayer(nn.Module):
         D_inv = torch.diag_embed(1.0 / d_safe)
         D_inv_sqrt = torch.sqrt(D_inv)
         u_r = u.unsqueeze(-1)
-        U = torch.matmul(u_r, u_r.transpose(-2,-1))
-        ut_d_inv_u = torch.matmul(u_r.transpose(-2,-1), torch.matmul(D_inv, u_r))
+        U = torch.matmul(u_r, u_r.transpose(-2, -1))
+        ut_d_inv_u = torch.matmul(u_r.transpose(-2, -1), torch.matmul(D_inv, u_r))
         eta = 1.0 / (1.0 + ut_d_inv_u)
         # Keep epsilon guard: ut_d_inv_u can be exactly zero when u is zero.
         right = (1.0 - torch.sqrt(eta)) / ut_d_inv_u.clamp(min=epsilon)
         R = D_inv_sqrt - right * torch.matmul(D_inv, torch.matmul(U, D_inv_sqrt))
         return R
 
-class Recognition(nn.Module):
 
+class Recognition(nn.Module):
 
     def __init__(self, input_dim=1, latent_dim=1, layers=1, device=None):
         super().__init__()
         self.input_dim = input_dim
         self.latent_dim = latent_dim
-        self.layers=layers+1
+        self.layers = layers + 1
         self.device = device
 
         self.make_network()
 
-
     def make_network(self):
 
         self.g = nn.ModuleList()
-        for i in range(self.layers):
+        for _i in range(self.layers):
             self.g.append(RecLayer(self.input_dim, self.latent_dim, self.device).to(self.device))
-
 
     def forward(self, x):
         R = []
         mean = []
         z = []
-        for l in self.g:
-            res = l(x)
+        for layer in self.g:
+            res = layer(x)
             R.append(res[1])
             mean.append(res[0])
             z.append(res[2])
-        
+
         return mean, R, z
 
 
 # ── Generator ─────────────────────────────────────────────────────────────────────
 
 
-
 class GenLayer(nn.Module):
 
     def __init__(self, hidden_size=1, latent_dim=1, seq_len=1, device=None):
         super().__init__()
-        self.hidden_size=hidden_size
-        self.latent_dim=latent_dim
-        self.seq_len=seq_len
-        self.device=device
+        self.hidden_size = hidden_size
+        self.latent_dim = latent_dim
+        self.seq_len = seq_len
+        self.device = device
         self.t = nn.Sequential(
             nn.Linear(in_features=self.hidden_size,
-                            out_features=self.hidden_size,device=device),
+                      out_features=self.hidden_size, device=device),
             nn.ReLU(),
             nn.Linear(in_features=self.hidden_size,
                       out_features=self.hidden_size, device=device),
             nn.ReLU()
         ).to(self.device)
-            
-        
+
         self.g = nn.Sequential(
             nn.Linear(in_features=self.latent_dim,
-                            out_features=self.latent_dim,
-                            device=self.device),
+                      out_features=self.latent_dim,
+                      device=self.device),
             nn.Linear(in_features=self.latent_dim,
-                            out_features=self.hidden_size,
-                            device=self.device),
+                      out_features=self.hidden_size,
+                      device=self.device),
             nn.LeakyReLU()).to(self.device)
 
     # Adding the noise and previous layer
@@ -141,16 +133,17 @@ class GenLayer(nn.Module):
         h = self.t(h)
         return h + self.g(xi)
 
+
 class Generator(nn.Module):
 
     def __init__(self, hidden_size=1, latent_dim=1, output_dim=1, layers=1, seq_len=1, device=None):
         super().__init__()
         self.output_dim = output_dim
-        self.layers=layers
+        self.layers = layers
         self.hidden_size = hidden_size
-        self.latent_dim=latent_dim
-        self.seq_len=seq_len
-        self.device=device
+        self.latent_dim = latent_dim
+        self.seq_len = seq_len
+        self.device = device
         self.make_network()
         self.xi = None
 
@@ -158,21 +151,21 @@ class Generator(nn.Module):
 
         self.h_l = nn.ModuleList()
 
-        for i in range(self.layers):
-            self.h_l.append(GenLayer(self.hidden_size, self.latent_dim,self.seq_len, self.device))
+        for _i in range(self.layers):
+            self.h_l.append(GenLayer(self.hidden_size, self.latent_dim, self.seq_len, self.device))
 
         self.H_L = nn.Sequential(
             nn.Linear(in_features=self.latent_dim,
-                            out_features=self.latent_dim,
-                            device=self.device),
+                      out_features=self.latent_dim,
+                      device=self.device),
             nn.Linear(in_features=self.latent_dim,
-                            out_features=self.hidden_size,
-                            device=self.device),
+                      out_features=self.hidden_size,
+                      device=self.device),
             nn.Tanh()).to(self.device)
 
         self.h_0 = nn.Sequential(
-                nn.Linear(in_features=self.hidden_size, out_features=self.output_dim, device=self.device),
-                nn.Sigmoid()).to(self.device)
+            nn.Linear(in_features=self.hidden_size, out_features=self.output_dim, device=self.device),
+            nn.Sigmoid()).to(self.device)
 
     def forward(self, batch_size=1):
         if self.xi is None:
@@ -190,14 +183,12 @@ class Generator(nn.Module):
 
     def make_xi(self, batch_size=1):
         self.xi = []
-        for i in range(self.layers + 1):
+        for _i in range(self.layers + 1):
             self.xi.append(torch.normal(mean=torch.zeros(batch_size, self.seq_len, self.latent_dim).to(self.device), std=1)
                            .to(self.device))
 
 
-
 # ── DLGM ─────────────────────────────────────────────────────────────────
-
 
 
 class DLGM(nn.Module):
@@ -220,7 +211,7 @@ class DLGM(nn.Module):
                                  seq_len,
                                  device)
 
-        self.model_r = Recognition(input_dim, 
+        self.model_r = Recognition(input_dim,
                                    latent_dim,
                                    layers,
                                    device)
@@ -268,7 +259,7 @@ class DLGM(nn.Module):
         mean, R, z = self.model_r(x_1)
         self.model_g.set_xi(z)
 
-        pred = self.model_g(x.size(0))[:,-1,:].unsqueeze(1)
+        pred = self.model_g(x.size(0))[:, -1, :].unsqueeze(1)
 
         loss = self._loss(y, pred, mean, R)
 
@@ -284,9 +275,7 @@ class DLGM(nn.Module):
         return val
 
 
-
 # ── Self-test ─────────────────────────────────────────────────────────────────
-
 if __name__ == "__main__":
     from torch.optim import Adam
 
@@ -301,9 +290,9 @@ if __name__ == "__main__":
     ).to(device)
     optimizer = Adam(model.get_parameters(), lr=0.1)
 
-    x = torch.randn(50, 3, 10).to(device)  ## used for the state recognition
-    y = torch.randn(50, 1, 10).to(device)  ## the value to be reconstructed
-    x_1 = torch.cat((x, y), dim=1)[:, 1:, :]  ## used for the recognition
+    x = torch.randn(50, 3, 10).to(device)  # used for the state recognition
+    y = torch.randn(50, 1, 10).to(device)  # the value to be reconstructed
+    x_1 = torch.cat((x, y), dim=1)[:, 1:, :]  # used for the recognition
 
     before = model.get_loss(x, x_1, y)
     for _ in range(300):

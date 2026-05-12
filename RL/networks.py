@@ -46,8 +46,8 @@ class Actor(nn.Module):
         self.network = nn.ModuleList(self.network)
 
     def forward(self, data):
-        for l in self.network:
-            data = l(data)
+        for layer in self.network:
+            data = layer(data)
         return data
 
 
@@ -92,6 +92,6 @@ class CriticNetwork(nn.Module):
         self.network = nn.ModuleList(self.network)
 
     def forward(self, data):
-        for l in self.network:
-            data = l(data)
+        for layer in self.network:
+            data = layer(data)
         return data
