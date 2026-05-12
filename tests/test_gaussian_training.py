@@ -128,6 +128,16 @@ class TestVRNNTraining(unittest.TestCase):
         final_loss = self.model.get_loss(self.x, self.x_1, self.y)
         self.assertLess(final_loss, initial_loss)
 
+    def test_vrnn_input_shape_validation(self):
+        bad_x_1 = torch.randn(16, 3, 5)
+        with self.assertRaises(ValueError):
+            self.model.get_loss(self.x, bad_x_1, self.y)
+
+    def test_vrnn_kld_is_stable_for_zero_std(self):
+        zeros = torch.zeros(4, 4)
+        kld = self.model._kld_gauss(zeros, zeros, zeros, zeros)
+        self.assertTrue(torch.isfinite(kld))
+
 
 if __name__ == "__main__":
     unittest.main()
