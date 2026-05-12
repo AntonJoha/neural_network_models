@@ -1,4 +1,5 @@
 import unittest
+import math
 
 import torch
 import torch.optim as optim
@@ -133,10 +134,19 @@ class TestVRNNTraining(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.model.get_loss(self.x, bad_x_1, self.y)
 
-    def test_vrnn_kld_is_stable_for_zero_std(self):
-        zeros = torch.zeros(4, 4)
-        kld = self.model._kld_gauss(zeros, zeros, zeros, zeros)
-        self.assertTrue(torch.isfinite(kld))
+    def test_vrnn_target_shape_validation(self):
+        bad_y = torch.randn(16, 1, 5)
+        with self.assertRaises(ValueError):
+            self.model.get_loss(self.x, self.x_1, bad_y)
+
+    def test_vrnn_loss_is_finite_for_zero_inputs(self):
+        zero_x = torch.zeros_like(self.x)
+        zero_y = torch.zeros_like(self.y)
+        zero_x_1 = torch.cat((zero_x, zero_y), dim=1)[:, 1:, :]
+        loss = self.model.get_loss(zero_x, zero_x_1, zero_y)
+        self.assertIsInstance(loss, float)
+        self.assertTrue(math.isfinite(loss))
+        self.assertGreaterEqual(loss, 0.0)
 
 
 if __name__ == "__main__":

@@ -8,6 +8,8 @@ EPS = 1e-6
 
 
 def epsilon_for(tensor: torch.Tensor) -> float:
+    if not tensor.is_floating_point():
+        return EPS
     return max(EPS, torch.finfo(tensor.dtype).eps)
 
 
@@ -28,6 +30,8 @@ class VRNN(nn.Module):
 
         activation_function should be a callable that returns an nn.Module
         (for example nn.ReLU, nn.LeakyReLU).
+        reconstruction_loss_factory should be a callable that returns
+        the reconstruction loss nn.Module (defaults to nn.MSELoss).
         """
         super().__init__()
         if device is None:
@@ -170,8 +174,6 @@ class VRNN(nn.Module):
         batch_size: int,
         seq_len: int,
     ) -> torch.Tensor:
-        if batch_size <= 0 or seq_len <= 0:
-            raise ValueError("batch_size and seq_len must be positive")
         if y.numel() != y_hat.numel():
             raise ValueError(f"Target shape {tuple(y.shape)} is incompatible with prediction shape {tuple(y_hat.shape)}")
         target = y.reshape_as(y_hat)
