@@ -19,5 +19,8 @@ dependencies = [
 [project.urls]
 Repository = "https://github.com/AntonJoha/neural_network_models"
 
+[tool.ruff.lint]
+select = ["E", "F", "B"]
+
 [tool.setuptools.packages.find]
 exclude = ["tests*"]
