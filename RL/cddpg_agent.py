@@ -37,13 +37,6 @@ class DDPG:
     def update_lr(self, count):
         sys.exit("Learning rate is to be updated")
 
-    def update_noise_rate(self, count):
-        sys.exit("UPDATE NOISE RATE")
-
-    def get_noise_rate(self):
-        return {"actor": self.optimizer_actor.noise_rate,
-                "critic": self.optimizer_critic}
-
     def select_action(self, state, variance=0, with_grad=False):
         if torch.is_tensor(state):
             state_tensor = state.to(device)
