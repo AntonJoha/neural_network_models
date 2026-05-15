@@ -93,6 +93,9 @@ class DDPG:
         self.optimizer_actor.step()
 
 
+DDPGAgent = DDPG
+
+
 if __name__ == "__main__":
 
     # Need to pass a config file.
