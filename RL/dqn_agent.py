@@ -37,14 +37,6 @@ class DQNAgent:
     def set_network_weights(self, weights):
         self.q_network.load_state_dict(weights)
 
-    def get_noise_rate(self):
-        return self.optimizer.noise_rate
-
-    def set_noise_rate(self, noise):
-        self.noise_rate = noise
-        self.optimizer.noise_rate = noise
-        print("NOISE UPDATED: ", noise)
-
     def get_learning_rate(self):
         return self.lr
 
