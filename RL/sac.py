@@ -77,6 +77,25 @@ class CriticNetwork(nn.Module):
 
 
 class Actor(nn.Module):
+    """
+    Stochastic actor network used by the SAC-style agent.
+
+    Config keys:
+        input      -- number of input features
+        layers     -- list of hidden layer sizes
+        output     -- number of output features
+        activation -- (optional) activation class; defaults to nn.Sigmoid
+    """
+
+    def __init__(self, config=None):
+        print("HEERE")
+        super().__init__()
+        self.config = config
+        if self.config is None:
+            sys.exit("NO CONFIG")
+
+        self.make_layers()
+
     def make_layers(self):
 
         dims = [self.config["input"]]
@@ -120,15 +139,6 @@ class Actor(nn.Module):
             data = layer(data)
         noise = self.entropy(d)
         return data, noise, data + noise
-
-    def __init__(self, config=None):
-        print("HEERE")
-        super().__init__()
-        self.config = config
-        if self.config is None:
-            sys.exit("NO CONFIG")
-
-        self.make_layers()
 
 
 class DDPG:
