@@ -45,12 +45,11 @@ class CriticNetwork(nn.Module):
     """
 
     def __init__(self, config=None):
+        super().__init__()
         self.config = config
         self.network = []
         if self.config is None:
             sys.exit("No config")
-
-        super().__init__()
 
         self.make_layers()
 
