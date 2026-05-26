@@ -1,5 +1,5 @@
-import sys
 import random
+import sys
 from collections import deque
 
 import numpy as np
@@ -23,7 +23,12 @@ class ReplayBuffer:
     def sample(self, batch_size):
         batch = random.sample(self.buffer, batch_size)
         states, actions, rewards, next_states = zip(*batch, strict=False)
-        return np.array(states), np.array(actions), np.array(rewards), np.array(next_states)
+        return (
+            np.array(states),
+            np.array(actions),
+            np.array(rewards),
+            np.array(next_states),
+        )
 
 
 class QNetwork(nn.Module):
@@ -72,7 +77,6 @@ class QNetwork(nn.Module):
 
 
 class DQNAgent:
-
     def __init__(self, config=None, loss=nn.MSELoss):
 
         if config is None:
@@ -84,7 +88,9 @@ class DQNAgent:
         self.q_network = QNetwork(self.config).to(device)
         self.target_network = QNetwork(self.config).to(device).eval()
 
-        self.optimizer = config["optimizer"](self.q_network.parameters(), lr=self.lr, config=config)
+        self.optimizer = config["optimizer"](
+            self.q_network.parameters(), lr=self.lr, config=config
+        )
         self.loss_function = loss()
 
     def evaluate_mode(self):
@@ -105,7 +111,7 @@ class DQNAgent:
     def set_learning_rate(self, lr):
         self.lr = lr
         for param_group in self.optimizer.param_groups:
-            param_group['lr'] = self.lr
+            param_group["lr"] = self.lr
         print("LEARNING RATE UPDATED: ", self.lr)
 
     def update_target_q_network(self):
@@ -131,17 +137,25 @@ class DQNAgent:
 
         # Convert to tensors
         states_tensor = torch.tensor(states, dtype=torch.float, device=device)
-        actions_tensor = torch.tensor(actions, dtype=torch.long, device=device).view(-1, 1)
-        rewards_tensor = torch.tensor(rewards, dtype=torch.float, device=device).view(-1, 1)
+        actions_tensor = torch.tensor(actions, dtype=torch.long, device=device).view(
+            -1, 1
+        )
+        rewards_tensor = torch.tensor(rewards, dtype=torch.float, device=device).view(
+            -1, 1
+        )
         next_states_tensor = torch.tensor(next_states, dtype=torch.float, device=device)
 
         # Q-values for the next states (target Q-network)
         if self.config["target_network"]:
             with torch.no_grad():
-                next_q_values = self.target_network(next_states_tensor).max(1)[0].unsqueeze(1)
+                next_q_values = (
+                    self.target_network(next_states_tensor).max(1)[0].unsqueeze(1)
+                )
         else:
             with torch.no_grad():
-                next_q_values = self.q_network(next_states_tensor).max(1)[0].unsqueeze(1)
+                next_q_values = (
+                    self.q_network(next_states_tensor).max(1)[0].unsqueeze(1)
+                )
 
         # Calculate target Q-values
         target_q_values = rewards_tensor + self.config["discount"] * next_q_values
@@ -160,19 +174,20 @@ class DQNAgent:
 
 
 if __name__ == "__main__":
-
     # Need to pass a config file.
     # This is done to have custom optimizers
     def adam_wrapper(parameters, lr, config):
         return optim.Adam(parameters, lr=lr)
 
-    conf = {"input": 6,
-            "output": 3,
-            "layers": [256, 256],
-            "target_network": True,
-            "lr": 0.1,
-            "discount": 0.99,
-            "optimizer": adam_wrapper}
+    conf = {
+        "input": 6,
+        "output": 3,
+        "layers": [256, 256],
+        "target_network": True,
+        "lr": 0.1,
+        "discount": 0.99,
+        "optimizer": adam_wrapper,
+    }
     print(DQNAgent(conf))
 
     a = DQNAgent(conf)
