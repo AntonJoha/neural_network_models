@@ -1,12 +1,74 @@
 import sys
+import random
+from collections import deque
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from .networks import Actor as QNetwork
-from .networks import device
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+class ReplayBuffer:
+    def __init__(self, capacity):
+        self.buffer = deque(maxlen=capacity)
+
+    def buffer_size(self):
+        return int(len(self.buffer))
+
+    def add(self, experience):
+        self.buffer.append(experience)
+
+    def sample(self, batch_size):
+        batch = random.sample(self.buffer, batch_size)
+        states, actions, rewards, next_states = zip(*batch, strict=False)
+        return np.array(states), np.array(actions), np.array(rewards), np.array(next_states)
+
+
+class QNetwork(nn.Module):
+    """
+    Generic MLP value network for discrete action spaces.
+
+    Config keys:
+        input      -- number of input features
+        layers     -- list of hidden layer sizes
+        output     -- number of output features
+        activation -- (optional) activation class; defaults to nn.Sigmoid
+    """
+
+    def __init__(self, config=None):
+        super().__init__()
+        self.config = config
+        if self.config is None:
+            sys.exit("No config")
+        self.make_layers()
+
+    def make_layers(self):
+        dims = [self.config["input"]]
+        for i in self.config["layers"]:
+            dims.append(i)
+
+        self.network = []
+
+        for i in range(len(dims) - 1):
+            self.network.append(
+                nn.Linear(dims[i], dims[i + 1], dtype=torch.float, device=device)
+            )
+            if "activation" not in self.config:
+                self.network.append(nn.Sigmoid())
+            else:
+                self.network.append(self.config["activation"]())
+        self.network.append(
+            nn.Linear(dims[-1], self.config["output"], dtype=torch.float, device=device)
+        )
+
+        self.network = nn.ModuleList(self.network)
+
+    def forward(self, data):
+        for layer in self.network:
+            data = layer(data)
+        return data
 
 
 class DQNAgent:
@@ -116,7 +178,6 @@ if __name__ == "__main__":
     a = DQNAgent(conf)
 
     import gymnasium as gym
-    from ReplayBuffer import ReplayBuffer
 
     env = gym.make("Acrobot-v1")
 
