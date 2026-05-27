@@ -88,7 +88,6 @@ class Actor(nn.Module):
     """
 
     def __init__(self, config=None):
-        print("HEERE")
         super().__init__()
         self.config = config
         if self.config is None:
