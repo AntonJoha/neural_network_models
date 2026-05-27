@@ -1,14 +1,127 @@
+import random
 import sys
+from collections import deque
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from .networks import Actor, CriticNetwork, device
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+class ReplayBuffer:
+    def __init__(self, capacity):
+        self.buffer = deque(maxlen=capacity)
+
+    def buffer_size(self):
+        return int(len(self.buffer))
+
+    def add(self, experience):
+        self.buffer.append(experience)
+
+    def sample(self, batch_size):
+        batch = random.sample(self.buffer, batch_size)
+        states, actions, rewards, next_states = zip(*batch, strict=False)
+        return (
+            np.array(states),
+            np.array(actions),
+            np.array(rewards),
+            np.array(next_states),
+        )
+
+
+class Actor(nn.Module):
+    """
+    Generic MLP actor/policy network.
+
+    Config keys:
+        input      -- number of input features
+        layers     -- list of hidden layer sizes
+        output     -- number of output features
+        activation -- (optional) activation class; defaults to nn.Sigmoid
+    """
+
+    def __init__(self, config=None):
+        super().__init__()
+        self.config = config
+        if self.config is None:
+            sys.exit("No config")
+        self.make_layers()
+
+    def make_layers(self):
+        dims = [self.config["input"]]
+        for i in self.config["layers"]:
+            dims.append(i)
+
+        self.network = []
+
+        for i in range(len(dims) - 1):
+            self.network.append(
+                nn.Linear(dims[i], dims[i + 1], dtype=torch.float, device=device)
+            )
+            if "activation" not in self.config:
+                self.network.append(nn.Sigmoid())
+            else:
+                self.network.append(self.config["activation"]())
+        self.network.append(
+            nn.Linear(dims[-1], self.config["output"], dtype=torch.float, device=device)
+        )
+
+        self.network = nn.ModuleList(self.network)
+
+    def forward(self, data):
+        for layer in self.network:
+            data = layer(data)
+        return data
+
+
+class CriticNetwork(nn.Module):
+    """
+    Critic (Q) network for continuous action spaces.
+
+    Takes a concatenation of (state, action) as input and outputs a scalar value.
+
+    Config keys:
+        input      -- number of state features
+        output     -- number of action features
+        q_layers   -- list of hidden layer sizes
+        activation -- (optional) activation class; defaults to nn.Sigmoid
+    """
+
+    def __init__(self, config=None):
+        super().__init__()
+        self.config = config
+        self.network = []
+        if self.config is None:
+            sys.exit("No config")
+
+        self.make_layers()
+
+    def make_layers(self):
+        dims = [self.config["input"] + self.config["output"]]
+        for i in self.config["q_layers"]:
+            dims.append(i)
+
+        for i in range(len(dims) - 1):
+            self.network.append(
+                nn.Linear(dims[i], dims[i + 1], dtype=torch.float, device=device)
+            )
+            if "activation" not in self.config:
+                self.network.append(nn.Sigmoid())
+            else:
+                self.network.append(self.config["activation"]())
+        self.network.append(nn.Linear(dims[-1], 1, dtype=torch.float, device=device))
+
+        self.network = nn.ModuleList(self.network)
+
+    def forward(self, data):
+        for layer in self.network:
+            data = layer(data)
+        return data
 
 
 class DDPG:
-
     def __init__(self, config=None):
 
         self.config = config
@@ -16,18 +129,18 @@ class DDPG:
             sys.exit("NO CONFIG")
 
         self.critic = CriticNetwork(config)
-        self.optimizer_critic = config["optimizer"](self.critic.parameters(),
-                                                    lr=config["critic_lr"],
-                                                    config=config)
+        self.optimizer_critic = config["optimizer"](
+            self.critic.parameters(), lr=config["critic_lr"], config=config
+        )
 
         self.target_network = None
         if "target_network" in config and config["target_network"]:
             self.target_network = CriticNetwork(config)
 
         self.actor = Actor(config)
-        self.optimizer_actor = config["optimizer"](self.actor.parameters(),
-                                                   lr=config["actor_lr"],
-                                                   config=config)
+        self.optimizer_actor = config["optimizer"](
+            self.actor.parameters(), lr=config["actor_lr"], config=config
+        )
         self.loss_function = nn.MSELoss()
 
     def update_target_q_network(self):
@@ -69,14 +182,22 @@ class DDPG:
 
         # Convert to tensors
         states_tensor = torch.tensor(states, dtype=torch.float, device=device)
-        actions_tensor = torch.tensor(actions, dtype=torch.float, device=device).view(-1, self.config["output"])
-        rewards_tensor = torch.tensor(rewards, dtype=torch.float, device=device).view(-1, 1)
+        actions_tensor = torch.tensor(actions, dtype=torch.float, device=device).view(
+            -1, self.config["output"]
+        )
+        rewards_tensor = torch.tensor(rewards, dtype=torch.float, device=device).view(
+            -1, 1
+        )
         next_states_tensor = torch.tensor(next_states, dtype=torch.float, device=device)
 
         # Q-values for the next states (target Q-network)
 
         with torch.no_grad():
-            next_q_values = self.get_q_value(next_states_tensor, self.select_action(next_states_tensor), self.config["target_network"])
+            next_q_values = self.get_q_value(
+                next_states_tensor,
+                self.select_action(next_states_tensor),
+                self.config["target_network"],
+            )
 
         target_q_values = rewards_tensor + self.config["discount"] * next_q_values
 
@@ -88,27 +209,30 @@ class DDPG:
         self.optimizer_critic.step()
 
         self.optimizer_actor.zero_grad()
-        actor_loss = -self.get_q_value(states_tensor, self.select_action(states_tensor, with_grad=True)).mean()
+        actor_loss = -self.get_q_value(
+            states_tensor, self.select_action(states_tensor, with_grad=True)
+        ).mean()
         actor_loss.backward()
         self.optimizer_actor.step()
 
 
 if __name__ == "__main__":
-
     # Need to pass a config file.
     # This is done to have custom optimizers
     def adam_wrapper(parameters, lr, config):
         return optim.Adam(parameters, lr=lr)
 
-    conf = {"input": 2,
-            "output": 1,
-            "q_layers": [256, 256],
-            "layers": [256, 256],
-            "target_network": False,
-            "actor_lr": 0.1,
-            "critic_lr": 0.01,
-            "discount": 0.99,
-            "optimizer": adam_wrapper}
+    conf = {
+        "input": 2,
+        "output": 1,
+        "q_layers": [256, 256],
+        "layers": [256, 256],
+        "target_network": False,
+        "actor_lr": 0.1,
+        "critic_lr": 0.01,
+        "discount": 0.99,
+        "optimizer": adam_wrapper,
+    }
 
     print(CriticNetwork(conf).network)
     critic = CriticNetwork(conf)
@@ -116,7 +240,6 @@ if __name__ == "__main__":
     ddpg = DDPG(conf)
 
     import gymnasium as gym
-    from ReplayBuffer import ReplayBuffer
 
     env = gym.make("MountainCarContinuous-v0")
 
@@ -127,7 +250,9 @@ if __name__ == "__main__":
 
     buffer = ReplayBuffer(1000)
     for _i in range(100):
-        next_state, reward, terminated, truncated, info = env.step(action.detach().numpy())
+        next_state, reward, terminated, truncated, info = env.step(
+            action.detach().numpy()
+        )
 
         print("Reward: ", reward)
 
