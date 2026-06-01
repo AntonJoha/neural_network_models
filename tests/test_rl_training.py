@@ -112,7 +112,7 @@ class TestRLTraining(unittest.TestCase):
             replay.add([state, action, reward, next_state])
 
         before = clone_parameters(agent.q_network)
-        loss = agent.replay(replay, batch_size=32, target_network=False)
+        loss = agent.replay(replay, batch_size=32)
         self.assertIsNotNone(loss)
         self.assertTrue(parameters_changed(before, agent.q_network))
 
