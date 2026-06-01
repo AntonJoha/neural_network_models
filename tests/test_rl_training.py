@@ -8,6 +8,7 @@ import torch.optim as optim
 
 from RL.cddpg_agent import DDPG as CDDPGAgent
 from RL.ddpg_agent import DDPG as DDPGAgent
+from RL.ddqn_agent import DoubleDQNAgent
 from RL.dqn_agent import DQNAgent
 from RL.ReplayBuffer import ReplayBuffer
 from RL.sac import DDPG as SACAgent
@@ -23,7 +24,9 @@ def clone_parameters(module):
 
 def parameters_changed(before, module):
     after = list(module.parameters())
-    return any(not torch.allclose(b, a.detach()) for b, a in zip(before, after, strict=False))
+    return any(
+        not torch.allclose(b, a.detach()) for b, a in zip(before, after, strict=False)
+    )
 
 
 class TestRLTraining(unittest.TestCase):
@@ -49,7 +52,36 @@ class TestRLTraining(unittest.TestCase):
             state = np.random.uniform(-1.0, 1.0, size=(4,)).astype(np.float32)
             action = int(np.random.randint(0, 3))
             reward = float(np.random.uniform(-1.0, 1.0))
-            next_state = (state + np.random.normal(0.0, 0.1, size=(4,))).astype(np.float32)
+            next_state = (state + np.random.normal(0.0, 0.1, size=(4,))).astype(
+                np.float32
+            )
+            replay.add([state, action, reward, next_state])
+
+        before = clone_parameters(agent.q_network)
+        loss = agent.replay(replay, batch_size=32)
+        self.assertIsNotNone(loss)
+        self.assertTrue(parameters_changed(before, agent.q_network))
+
+    def test_ddqn_replay_updates_q_network(self):
+        config = {
+            "input": 4,
+            "output": 3,
+            "layers": [16],
+            "target_network": True,
+            "lr": 1e-2,
+            "discount": 0.95,
+            "optimizer": adam_wrapper,
+        }
+        agent = DoubleDQNAgent(config)
+        replay = ReplayBuffer(256)
+
+        for _ in range(64):
+            state = np.random.uniform(-1.0, 1.0, size=(4,)).astype(np.float32)
+            action = int(np.random.randint(0, 3))
+            reward = float(np.random.uniform(-1.0, 1.0))
+            next_state = (state + np.random.normal(0.0, 0.1, size=(4,))).astype(
+                np.float32
+            )
             replay.add([state, action, reward, next_state])
 
         before = clone_parameters(agent.q_network)
@@ -76,7 +108,9 @@ class TestRLTraining(unittest.TestCase):
             state = np.random.uniform(-1.0, 1.0, size=(3,)).astype(np.float32)
             action = np.random.uniform(-1.0, 1.0, size=(1,)).astype(np.float32)
             reward = float(np.random.uniform(-1.0, 1.0))
-            next_state = (state + np.random.normal(0.0, 0.1, size=(3,))).astype(np.float32)
+            next_state = (state + np.random.normal(0.0, 0.1, size=(3,))).astype(
+                np.float32
+            )
             replay.add([state, action, reward, next_state])
 
         actor_before = clone_parameters(agent.actor)
@@ -105,7 +139,9 @@ class TestRLTraining(unittest.TestCase):
             state = np.random.uniform(-1.0, 1.0, size=(3,)).astype(np.float32)
             action = np.random.uniform(-1.0, 1.0, size=(1,)).astype(np.float32)
             reward = float(np.random.uniform(-1.0, 1.0))
-            next_state = (state + np.random.normal(0.0, 0.1, size=(3,))).astype(np.float32)
+            next_state = (state + np.random.normal(0.0, 0.1, size=(3,))).astype(
+                np.float32
+            )
             replay.add([state, action, reward, next_state])
 
         actor_before = clone_parameters(agent.actor)
@@ -134,7 +170,9 @@ class TestRLTraining(unittest.TestCase):
             state = np.random.uniform(-1.0, 1.0, size=(3,)).astype(np.float32)
             action = np.random.uniform(-1.0, 1.0, size=(1,)).astype(np.float32)
             reward = float(np.random.uniform(-1.0, 1.0))
-            next_state = (state + np.random.normal(0.0, 0.1, size=(3,))).astype(np.float32)
+            next_state = (state + np.random.normal(0.0, 0.1, size=(3,))).astype(
+                np.float32
+            )
             replay.add([state, action, reward, next_state])
 
         actor_before = clone_parameters(agent.actor)
@@ -166,7 +204,9 @@ class TestRLTraining(unittest.TestCase):
             state = np.random.uniform(-1.0, 1.0, size=(4,)).astype(np.float32)
             action = int(np.random.randint(0, 3))
             reward = float(np.random.uniform(-1.0, 1.0))
-            next_state = (state + np.random.normal(0.0, 0.1, size=(4,))).astype(np.float32)
+            next_state = (state + np.random.normal(0.0, 0.1, size=(4,))).astype(
+                np.float32
+            )
             replay.add([state, action, reward, next_state])
 
         early_losses = [agent.replay(replay, batch_size=32).item() for _ in range(10)]
@@ -181,7 +221,9 @@ class TestRLTraining(unittest.TestCase):
         states = np.random.uniform(-1.0, 1.0, size=(n, state_dim)).astype(np.float32)
         actions = np.random.uniform(-1.0, 1.0, size=(n, action_dim)).astype(np.float32)
         rewards = np.random.uniform(-1.0, 1.0, size=(n,)).astype(np.float32)
-        next_states = (states + np.random.normal(0.0, 0.1, size=(n, state_dim))).astype(np.float32)
+        next_states = (states + np.random.normal(0.0, 0.1, size=(n, state_dim))).astype(
+            np.float32
+        )
         replay = ReplayBuffer(n)
         for i in range(n):
             replay.add([states[i], actions[i], float(rewards[i]), next_states[i]])
@@ -212,7 +254,9 @@ class TestRLTraining(unittest.TestCase):
             "optimizer": adam_wrapper,
         }
         agent = DDPGAgent(config)
-        replay, states_t, actions_t, rewards_t, next_states_t = self._build_ddpg_replay(3, 1)
+        replay, states_t, actions_t, rewards_t, next_states_t = self._build_ddpg_replay(
+            3, 1
+        )
 
         with torch.no_grad():
             next_actions = agent.select_action(next_states_t)
@@ -238,7 +282,9 @@ class TestRLTraining(unittest.TestCase):
             "optimizer": adam_wrapper,
         }
         agent = CDDPGAgent(config)
-        replay, states_t, actions_t, rewards_t, next_states_t = self._build_ddpg_replay(3, 1)
+        replay, states_t, actions_t, rewards_t, next_states_t = self._build_ddpg_replay(
+            3, 1
+        )
 
         with torch.no_grad():
             next_actions = agent.select_action(next_states_t)
@@ -267,13 +313,21 @@ class TestRLTraining(unittest.TestCase):
             "optimizer": adam_wrapper,
         }
         agent = SACAgent(config)
-        replay, states_t, actions_t, rewards_t, next_states_t = self._build_ddpg_replay(3, 1)
+        replay, states_t, actions_t, rewards_t, next_states_t = self._build_ddpg_replay(
+            3, 1
+        )
 
         with torch.no_grad():
             next_actions = agent.select_action(next_states_t)
-            next_q1 = agent.target_network_1(torch.cat((next_states_t, next_actions), dim=1))
-            next_q2 = agent.target_network_2(torch.cat((next_states_t, next_actions), dim=1))
-            fixed_targets = (rewards_t + config["discount"] * torch.min(next_q1, next_q2)).clone()
+            next_q1 = agent.target_network_1(
+                torch.cat((next_states_t, next_actions), dim=1)
+            )
+            next_q2 = agent.target_network_2(
+                torch.cat((next_states_t, next_actions), dim=1)
+            )
+            fixed_targets = (
+                rewards_t + config["discount"] * torch.min(next_q1, next_q2)
+            ).clone()
 
         def critic1_loss():
             with torch.no_grad():

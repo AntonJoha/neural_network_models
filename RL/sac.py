@@ -125,7 +125,6 @@ class Actor(nn.Module):
                 nn.Sigmoid(),
             )
         else:
-        else:
             self.entropy = nn.Sequential(
                 nn.Linear(self.config["input"], dims[0]),
                 self.config["activation"](),
