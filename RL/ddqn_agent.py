@@ -37,8 +37,6 @@ class DoubleDQNAgent(DQNAgent):
         self.optimizer.zero_grad()
         q_values = self.q_network(states_tensor).gather(1, actions_tensor)
         loss = self.loss_function(q_values, target_q_values)
-        loss.item()
         loss.backward()
         self.optimizer.step()
-        print(loss)
         return loss
