@@ -20,16 +20,17 @@ class DoubleDQNAgent(DQNAgent):
         next_states_tensor = torch.tensor(next_states, dtype=torch.float, device=device)
 
         with torch.no_grad():
-            next_actions = self.q_network(next_states_tensor).argmax(
-                dim=1, keepdim=True
-            )
-            if self.config["target_network"] and target_network:
+            use_target_network = self.config["target_network"] and target_network
+            if use_target_network:
+                next_actions = self.q_network(next_states_tensor).argmax(
+                    dim=1, keepdim=True
+                )
                 next_q_values = self.target_network(next_states_tensor).gather(
                     1, next_actions
                 )
             else:
-                next_q_values = self.q_network(next_states_tensor).gather(
-                    1, next_actions
+                next_q_values = (
+                    self.q_network(next_states_tensor).max(1)[0].unsqueeze(1)
                 )
 
         target_q_values = rewards_tensor + self.config["discount"] * next_q_values

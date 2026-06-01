@@ -89,6 +89,33 @@ class TestRLTraining(unittest.TestCase):
         self.assertIsNotNone(loss)
         self.assertTrue(parameters_changed(before, agent.q_network))
 
+    def test_ddqn_replay_updates_q_network_without_target_network(self):
+        config = {
+            "input": 4,
+            "output": 3,
+            "layers": [16],
+            "target_network": False,
+            "lr": 1e-2,
+            "discount": 0.95,
+            "optimizer": adam_wrapper,
+        }
+        agent = DoubleDQNAgent(config)
+        replay = ReplayBuffer(256)
+
+        for _ in range(64):
+            state = np.random.uniform(-1.0, 1.0, size=(4,)).astype(np.float32)
+            action = int(np.random.randint(0, 3))
+            reward = float(np.random.uniform(-1.0, 1.0))
+            next_state = (state + np.random.normal(0.0, 0.1, size=(4,))).astype(
+                np.float32
+            )
+            replay.add([state, action, reward, next_state])
+
+        before = clone_parameters(agent.q_network)
+        loss = agent.replay(replay, batch_size=32, target_network=False)
+        self.assertIsNotNone(loss)
+        self.assertTrue(parameters_changed(before, agent.q_network))
+
     def test_ddpg_train_updates_actor_and_critic(self):
         config = {
             "input": 3,
