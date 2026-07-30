@@ -16,7 +16,6 @@ def epsilon_for(tensor: torch.Tensor) -> float:
 
 
 class RecLayer(nn.Module):
-
     def __init__(self, input_dim=1, latent_dim=1, device=None):
         super().__init__()
         self.latent_dim = latent_dim
@@ -27,18 +26,19 @@ class RecLayer(nn.Module):
             nn.Linear(self.input_dim, self.latent_dim),
             nn.Sigmoid(),
             nn.Linear(self.latent_dim, self.latent_dim),
-            nn.Sigmoid()).to(device)
+            nn.Sigmoid(),
+        ).to(device)
         self.u = nn.Sequential(
             nn.Linear(self.input_dim, self.latent_dim),
             nn.Sigmoid(),
             nn.Linear(self.latent_dim, self.latent_dim),
-            nn.Sigmoid()
+            nn.Sigmoid(),
         ).to(device)
         self.mean = nn.Sequential(
             nn.Linear(self.input_dim, self.latent_dim),
             nn.Tanh(),
             nn.Linear(self.latent_dim, self.latent_dim),
-            nn.Tanh()
+            nn.Tanh(),
         ).to(device)
 
     def forward(self, x):
@@ -70,7 +70,6 @@ class RecLayer(nn.Module):
 
 
 class Recognition(nn.Module):
-
     def __init__(self, input_dim=1, latent_dim=1, layers=1, device=None):
         super().__init__()
         self.input_dim = input_dim
@@ -84,7 +83,9 @@ class Recognition(nn.Module):
 
         self.g = nn.ModuleList()
         for _i in range(self.layers):
-            self.g.append(RecLayer(self.input_dim, self.latent_dim, self.device).to(self.device))
+            self.g.append(
+                RecLayer(self.input_dim, self.latent_dim, self.device).to(self.device)
+            )
 
     def forward(self, x):
         R = []
@@ -103,7 +104,6 @@ class Recognition(nn.Module):
 
 
 class GenLayer(nn.Module):
-
     def __init__(self, hidden_size=1, latent_dim=1, seq_len=1, device=None):
         super().__init__()
         self.hidden_size = hidden_size
@@ -111,22 +111,33 @@ class GenLayer(nn.Module):
         self.seq_len = seq_len
         self.device = device
         self.t = nn.Sequential(
-            nn.Linear(in_features=self.hidden_size,
-                      out_features=self.hidden_size, device=device),
+            nn.Linear(
+                in_features=self.hidden_size,
+                out_features=self.hidden_size,
+                device=device,
+            ),
             nn.ReLU(),
-            nn.Linear(in_features=self.hidden_size,
-                      out_features=self.hidden_size, device=device),
-            nn.ReLU()
+            nn.Linear(
+                in_features=self.hidden_size,
+                out_features=self.hidden_size,
+                device=device,
+            ),
+            nn.ReLU(),
         ).to(self.device)
 
         self.g = nn.Sequential(
-            nn.Linear(in_features=self.latent_dim,
-                      out_features=self.latent_dim,
-                      device=self.device),
-            nn.Linear(in_features=self.latent_dim,
-                      out_features=self.hidden_size,
-                      device=self.device),
-            nn.LeakyReLU()).to(self.device)
+            nn.Linear(
+                in_features=self.latent_dim,
+                out_features=self.latent_dim,
+                device=self.device,
+            ),
+            nn.Linear(
+                in_features=self.latent_dim,
+                out_features=self.hidden_size,
+                device=self.device,
+            ),
+            nn.LeakyReLU(),
+        ).to(self.device)
 
     # Adding the noise and previous layer
     def forward(self, h, xi):
@@ -135,8 +146,15 @@ class GenLayer(nn.Module):
 
 
 class Generator(nn.Module):
-
-    def __init__(self, hidden_size=1, latent_dim=1, output_dim=1, layers=1, seq_len=1, device=None):
+    def __init__(
+        self,
+        hidden_size=1,
+        latent_dim=1,
+        output_dim=1,
+        layers=1,
+        seq_len=1,
+        device=None,
+    ):
         super().__init__()
         self.output_dim = output_dim
         self.layers = layers
@@ -152,20 +170,32 @@ class Generator(nn.Module):
         self.h_l = nn.ModuleList()
 
         for _i in range(self.layers):
-            self.h_l.append(GenLayer(self.hidden_size, self.latent_dim, self.seq_len, self.device))
+            self.h_l.append(
+                GenLayer(self.hidden_size, self.latent_dim, self.seq_len, self.device)
+            )
 
         self.H_L = nn.Sequential(
-            nn.Linear(in_features=self.latent_dim,
-                      out_features=self.latent_dim,
-                      device=self.device),
-            nn.Linear(in_features=self.latent_dim,
-                      out_features=self.hidden_size,
-                      device=self.device),
-            nn.Tanh()).to(self.device)
+            nn.Linear(
+                in_features=self.latent_dim,
+                out_features=self.latent_dim,
+                device=self.device,
+            ),
+            nn.Linear(
+                in_features=self.latent_dim,
+                out_features=self.hidden_size,
+                device=self.device,
+            ),
+            nn.Tanh(),
+        ).to(self.device)
 
         self.h_0 = nn.Sequential(
-            nn.Linear(in_features=self.hidden_size, out_features=self.output_dim, device=self.device),
-            nn.Sigmoid()).to(self.device)
+            nn.Linear(
+                in_features=self.hidden_size,
+                out_features=self.output_dim,
+                device=self.device,
+            ),
+            nn.Sigmoid(),
+        ).to(self.device)
 
     def forward(self, batch_size=1):
         if self.xi is None:
@@ -184,8 +214,14 @@ class Generator(nn.Module):
     def make_xi(self, batch_size=1):
         self.xi = []
         for _i in range(self.layers + 1):
-            self.xi.append(torch.normal(mean=torch.zeros(batch_size, self.seq_len, self.latent_dim).to(self.device), std=1)
-                           .to(self.device))
+            self.xi.append(
+                torch.normal(
+                    mean=torch.zeros(batch_size, self.seq_len, self.latent_dim).to(
+                        self.device
+                    ),
+                    std=1,
+                ).to(self.device)
+            )
 
 
 # ── DLGM ─────────────────────────────────────────────────────────────────
@@ -204,17 +240,11 @@ class DLGM(nn.Module):
     ):
         super().__init__()
 
-        self.model_g = Generator(hidden_size,
-                                 latent_dim,
-                                 output_dim,
-                                 layers,
-                                 seq_len,
-                                 device)
+        self.model_g = Generator(
+            hidden_size, latent_dim, output_dim, layers, seq_len, device
+        )
 
-        self.model_r = Recognition(input_dim,
-                                   latent_dim,
-                                   layers,
-                                   device)
+        self.model_r = Recognition(input_dim, latent_dim, layers, device)
 
         self.mse = nn.MSELoss()
 
@@ -227,7 +257,9 @@ class DLGM(nn.Module):
     def _loss(self, y, y_hat, mean, R) -> torch.Tensor:
         epsilon = epsilon_for(y_hat)
         if y.numel() != y_hat.numel():
-            raise ValueError(f"Target shape {tuple(y.shape)} is incompatible with prediction shape {tuple(y_hat.shape)}")
+            raise ValueError(
+                f"Target shape {tuple(y.shape)} is incompatible with prediction shape {tuple(y_hat.shape)}"
+            )
         target = y.reshape_as(y_hat)
         loss = self.mse(y_hat, target)
         matrix_size = mean[0].size(0) * mean[0].size(1)
@@ -239,10 +271,7 @@ class DLGM(nn.Module):
             loss += (
                 0.5
                 * torch.sum(
-                    m.pow(2).sum(-1)
-                    + C.diagonal(dim1=-2, dim2=-1).sum(-1)
-                    - logdet
-                    - 1
+                    m.pow(2).sum(-1) + C.diagonal(dim1=-2, dim2=-1).sum(-1) - logdet - 1
                 )
                 / matrix_size
             )

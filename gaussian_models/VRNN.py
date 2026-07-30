@@ -83,7 +83,9 @@ class VRNN(nn.Module):
     def get_parameters(self):
         return self.parameters()
 
-    def _reparameterized_sample(self, mean: torch.Tensor, std: torch.Tensor) -> torch.Tensor:
+    def _reparameterized_sample(
+        self, mean: torch.Tensor, std: torch.Tensor
+    ) -> torch.Tensor:
         eps = torch.randn_like(std)
         return mean + eps * std
 
@@ -106,7 +108,9 @@ class VRNN(nn.Module):
 
     def _forward_sequence(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         batch_size, seq_len, _ = x.shape
-        h = torch.zeros(self.layers, batch_size, self.hidden_size, device=x.device, dtype=x.dtype)
+        h = torch.zeros(
+            self.layers, batch_size, self.hidden_size, device=x.device, dtype=x.dtype
+        )
 
         kld_loss = torch.zeros((), device=x.device, dtype=x.dtype)
         decoded = []
@@ -132,7 +136,9 @@ class VRNN(nn.Module):
 
             _, h = self.rnn(torch.cat([phi_x_t, phi_z_t], dim=1).unsqueeze(1), h)
 
-            kld_loss = kld_loss + self._kld_gauss(enc_mean_t, enc_std_t, prior_mean_t, prior_std_t)
+            kld_loss = kld_loss + self._kld_gauss(
+                enc_mean_t, enc_std_t, prior_mean_t, prior_std_t
+            )
 
         return kld_loss, torch.stack(decoded, dim=1)
 

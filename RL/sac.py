@@ -94,7 +94,6 @@ class Actor(nn.Module):
             sys.exit("NO CONFIG")
 
         self.make_layers()
-
     def make_layers(self):
 
         dims = [self.config["input"]]
@@ -124,7 +123,6 @@ class Actor(nn.Module):
                 nn.Linear(dims[0], self.config["output"]),
                 nn.Sigmoid(),
             )
-        else:
         else:
             self.entropy = nn.Sequential(
                 nn.Linear(self.config["input"], dims[0]),
