@@ -105,15 +105,7 @@ class GenLayer(nn.Module):
         return self.internal_state
 
     def set_internal_state(self, internal_state):
-        if internal_state is None:
-            self.internal_state = None
-            return
-
-        # Prevent carrying computation graphs between sequences
-        self.internal_state = (
-            internal_state[0].detach(),
-            internal_state[1].detach(),
-        )
+        self.internal_state
 
     def make_internal_state(self, batch_size=1):
         self.internal_state = (
@@ -320,53 +312,18 @@ class RecLayer(nn.Module):
         d,
         u,
     ):
-        """
-        Stable factorization of:
-
-        C = D + uu^T
-
-        where:
-
-        R R^T = C
-
-        """
-
         eps = 1e-6
 
-        d = d + eps
+        C = torch.diag_embed(d + eps)
 
-        D_inv = torch.diag_embed(1.0 / d)
+        u = u.unsqueeze(-1)
 
-        D_inv_sqrt = torch.diag_embed(torch.sqrt(1.0 / d))
+        C = C + u @ u.transpose(-2, -1)
 
-        u_col = u.unsqueeze(-1)
-
-        uu = torch.matmul(
-            u_col,
-            u_col.transpose(-2, -1),
-        )
-
-        denom = 1.0 + torch.matmul(
-            u_col.transpose(-2, -1),
-            torch.matmul(
-                D_inv,
-                u_col,
-            ),
-        )
-
-        coefficient = (1.0 - torch.sqrt(1.0 / denom)) / (denom + eps)
-
-        R = D_inv_sqrt - coefficient * torch.matmul(
-            D_inv,
-            torch.matmul(
-                uu,
-                D_inv_sqrt,
-            ),
-        )
+        R = torch.linalg.cholesky(C)
 
         return R
-
-
+            
 class Recognition(nn.Module):
     def __init__(
         self,
