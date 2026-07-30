@@ -8,7 +8,6 @@ from .networks import CriticNetwork, device
 
 
 class Actor(nn.Module):
-
     def make_layers(self):
 
         dims = [self.config["input"]]
@@ -19,11 +18,7 @@ class Actor(nn.Module):
 
         for i in range(len(dims) - 1):
             self.network.append(
-                nn.Linear(
-                    dims[i],
-                    dims[i + 1],
-                    dtype=torch.float,
-                    device=device)
+                nn.Linear(dims[i], dims[i + 1], dtype=torch.float, device=device)
             )
 
             if "activation" not in self.config:
@@ -31,20 +26,24 @@ class Actor(nn.Module):
             else:
                 self.network.append(self.config["activation"]())
         self.network.append(
-            nn.Linear(
-                dims[-1],
-                self.config["output"],
-                dtype=torch.float,
-                device=device)
+            nn.Linear(dims[-1], self.config["output"], dtype=torch.float, device=device)
         )
 
         self.network = nn.ModuleList(self.network)
         if "activation" not in self.config:
-            self.entropy = nn.Sequential(nn.Linear(self.config["input"], dims[0]), nn.Sigmoid(), nn.Linear(dims[0], self.config["output"]), nn.Sigmoid())
+            self.entropy = nn.Sequential(
+                nn.Linear(self.config["input"], dims[0]),
+                nn.Sigmoid(),
+                nn.Linear(dims[0], self.config["output"]),
+                nn.Sigmoid(),
+            )
         else:
-            self.entropy = nn.Sequential(nn.Linear(self.config["input"], dims[0]), self.config["activation"],
-                                         nn.Linear(dims[0], self.config["output"]),
-                                         self.config["activation"]())
+            self.entropy = nn.Sequential(
+                nn.Linear(self.config["input"], dims[0]),
+                self.config["activation"],
+                nn.Linear(dims[0], self.config["output"]),
+                self.config["activation"](),
+            )
 
     def forward(self, data):
         d = data.detach().clone()
@@ -64,7 +63,6 @@ class Actor(nn.Module):
 
 
 class DDPG:
-
     def __init__(self, config=None):
 
         self.config = config
@@ -77,22 +75,22 @@ class DDPG:
 
         self.critic_1 = CriticNetwork(config)
         self.critic_2 = CriticNetwork(config)
-        self.optimizer_critic_1 = config["optimizer"](self.critic_1.parameters(),
-                                                      lr=config["critic_lr"],
-                                                      config=config)
+        self.optimizer_critic_1 = config["optimizer"](
+            self.critic_1.parameters(), lr=config["critic_lr"], config=config
+        )
 
-        self.optimizer_critic_2 = config["optimizer"](self.critic_2.parameters(),
-                                                      lr=config["critic_lr"],
-                                                      config=config)
+        self.optimizer_critic_2 = config["optimizer"](
+            self.critic_2.parameters(), lr=config["critic_lr"], config=config
+        )
 
         if "target_network" in config and config["target_network"]:
             self.target_network_1 = CriticNetwork(config)
             self.target_network_2 = CriticNetwork(config)
 
         self.actor = Actor(config)
-        self.optimizer_actor = config["optimizer"](self.actor.parameters(),
-                                                   lr=config["actor_lr"],
-                                                   config=config)
+        self.optimizer_actor = config["optimizer"](
+            self.actor.parameters(), lr=config["actor_lr"], config=config
+        )
         self.loss_function = nn.MSELoss()
 
     def update_lr(self, count):
@@ -115,8 +113,12 @@ class DDPG:
 
         # Convert to tensors
         states_tensor = torch.tensor(states, dtype=torch.float, device=device)
-        actions_tensor = torch.tensor(actions, dtype=torch.float, device=device).view(-1, self.config["output"])
-        rewards_tensor = torch.tensor(rewards, dtype=torch.float, device=device).view(-1, 1)
+        actions_tensor = torch.tensor(actions, dtype=torch.float, device=device).view(
+            -1, self.config["output"]
+        )
+        rewards_tensor = torch.tensor(rewards, dtype=torch.float, device=device).view(
+            -1, 1
+        )
         next_states_tensor = torch.tensor(next_states, dtype=torch.float, device=device)
 
         # Q-values for the next states
@@ -129,14 +131,22 @@ class DDPG:
         if use_target_network:
             with torch.no_grad():
                 _, _, next_actions = self.actor(next_states_tensor)
-                next_q_1 = self.target_network_1(torch.cat((next_states_tensor, next_actions), dim=1))
-                next_q_2 = self.target_network_2(torch.cat((next_states_tensor, next_actions), dim=1))
+                next_q_1 = self.target_network_1(
+                    torch.cat((next_states_tensor, next_actions), dim=1)
+                )
+                next_q_2 = self.target_network_2(
+                    torch.cat((next_states_tensor, next_actions), dim=1)
+                )
                 next_q_values = torch.min(next_q_1, next_q_2)
         else:
             with torch.no_grad():
                 _, _, next_actions = self.actor(next_states_tensor)
-                next_q_1 = self.critic_1(torch.cat((next_states_tensor, next_actions), dim=1))
-                next_q_2 = self.critic_2(torch.cat((next_states_tensor, next_actions), dim=1))
+                next_q_1 = self.critic_1(
+                    torch.cat((next_states_tensor, next_actions), dim=1)
+                )
+                next_q_2 = self.critic_2(
+                    torch.cat((next_states_tensor, next_actions), dim=1)
+                )
                 next_q_values = torch.min(next_q_1, next_q_2)
 
         # Calculate target Q-values
@@ -156,7 +166,9 @@ class DDPG:
 
         self.optimizer_actor.zero_grad()
         _, _, actor_actions = self.actor(states_tensor)
-        actor_loss = -self.critic_1(torch.cat((states_tensor, actor_actions), dim=1)).mean()
+        actor_loss = -self.critic_1(
+            torch.cat((states_tensor, actor_actions), dim=1)
+        ).mean()
         actor_loss.backward()
         self.optimizer_actor.step()
 
@@ -164,21 +176,22 @@ class DDPG:
 
 
 if __name__ == "__main__":
-
     # Need to pass a config file.
     # This is done to have custom optimizers
     def adam_wrapper(parameters, lr, config):
         return optim.Adam(parameters, lr=lr)
 
-    conf = {"input": 2,
-            "output": 1,
-            "q_layers": [256, 256],
-            "layers": [256, 256],
-            "target_network": True,
-            "actor_lr": 0.1,
-            "critic_lr": 0.1,
-            "discount": 0.99,
-            "optimizer": adam_wrapper}
+    conf = {
+        "input": 2,
+        "output": 1,
+        "q_layers": [256, 256],
+        "layers": [256, 256],
+        "target_network": True,
+        "actor_lr": 0.1,
+        "critic_lr": 0.1,
+        "discount": 0.99,
+        "optimizer": adam_wrapper,
+    }
 
     print(CriticNetwork(conf).network)
     critic = CriticNetwork(conf)

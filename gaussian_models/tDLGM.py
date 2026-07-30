@@ -260,18 +260,11 @@ class tDLGM(nn.Module):
     ):
         super().__init__()
 
-        self.model_t = TimeRecognition(input_dim,
-                                       hidden_size,
-                                       seq_len,
-                                       layers,
-                                       device)
+        self.model_t = TimeRecognition(input_dim, hidden_size, seq_len, layers, device)
 
-        self.model_g = Generator(hidden_size,
-                                 latent_dim,
-                                 output_dim,
-                                 layers,
-                                 seq_len,
-                                 device)
+        self.model_g = Generator(
+            hidden_size, latent_dim, output_dim, layers, seq_len, device
+        )
 
         self.model_r = Recognition(input_dim, latent_dim, layers, device)
 
@@ -422,8 +415,13 @@ if __name__ == "__main__":
     optimizer = Adam(model.get_parameters(), lr=0.1)
 
     x = torch.randn(50, 3, 10).to(device)  # used for the state recognition
-    y = torch.randint(0, 10, (50, 1)).to(device)  # the value to be reconstructed (class labels)
-    x_1 = torch.cat((x, nn.functional.one_hot(y.squeeze(), num_classes=10).float().unsqueeze(1)), dim=1)[:, 1:, :]  # used for the recognition
+    y = torch.randint(0, 10, (50, 1)).to(
+        device
+    )  # the value to be reconstructed (class labels)
+    x_1 = torch.cat(
+        (x, nn.functional.one_hot(y.squeeze(), num_classes=10).float().unsqueeze(1)),
+        dim=1,
+    )[:, 1:, :]  # used for the recognition
 
     before = model.get_loss(x, x_1, y)
     for _ in range(300):

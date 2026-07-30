@@ -23,7 +23,9 @@ def parameters_changed(before, module):
 class TestDLGMTraining(unittest.TestCase):
     def setUp(self):
         torch.manual_seed(0)
-        self.model = DLGM(input_dim=4, hidden_size=8, latent_dim=4, output_dim=4, layers=1, seq_len=3)
+        self.model = DLGM(
+            input_dim=4, hidden_size=8, latent_dim=4, output_dim=4, layers=1, seq_len=3
+        )
         self.optimizer = optim.Adam(self.model.get_parameters(), lr=1e-1)
         self.x = torch.randn(16, 3, 4)
         self.y = torch.randn(16, 1, 4)
@@ -41,6 +43,7 @@ class TestDLGMTraining(unittest.TestCase):
             self.model.train_step(self.x, self.x_1, self.y, self.optimizer)
         final_loss = self.model.get_loss(self.x, self.x_1, self.y)
         self.assertLess(final_loss, initial_loss)
+
 
 class TestGaussianTraining(unittest.TestCase):
     def setUp(self):
