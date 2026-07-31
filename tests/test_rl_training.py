@@ -8,6 +8,7 @@ import torch.optim as optim
 
 from RL.cddpg_agent import DDPG as CDDPGAgent
 from RL.ddpg_agent import DDPG as DDPGAgent
+from RL.ddqn_agent import DoubleDQNAgent
 from RL.dqn_agent import DQNAgent
 from RL.ReplayBuffer import ReplayBuffer
 from RL.sac import DDPG as SACAgent
@@ -60,6 +61,90 @@ class TestRLTraining(unittest.TestCase):
         loss = agent.replay(replay, batch_size=32)
         self.assertIsNotNone(loss)
         self.assertTrue(parameters_changed(before, agent.q_network))
+
+    def test_ddqn_replay_updates_q_network(self):
+        config = {
+            "input": 4,
+            "output": 3,
+            "layers": [16],
+            "target_network": True,
+            "lr": 1e-2,
+            "discount": 0.95,
+            "optimizer": adam_wrapper,
+        }
+        agent = DoubleDQNAgent(config)
+        replay = ReplayBuffer(256)
+
+        for _ in range(64):
+            state = np.random.uniform(-1.0, 1.0, size=(4,)).astype(np.float32)
+            action = int(np.random.randint(0, 3))
+            reward = float(np.random.uniform(-1.0, 1.0))
+            next_state = (state + np.random.normal(0.0, 0.1, size=(4,))).astype(
+                np.float32
+            )
+            replay.add([state, action, reward, next_state])
+
+        before = clone_parameters(agent.q_network)
+        loss = agent.replay(replay, batch_size=32)
+        self.assertIsNotNone(loss)
+        self.assertTrue(parameters_changed(before, agent.q_network))
+
+    def test_ddqn_replay_updates_q_network_without_target_network(self):
+        config = {
+            "input": 4,
+            "output": 3,
+            "layers": [16],
+            "target_network": False,
+            "lr": 1e-2,
+            "discount": 0.95,
+            "optimizer": adam_wrapper,
+        }
+        agent = DoubleDQNAgent(config)
+        replay = ReplayBuffer(256)
+
+        for _ in range(64):
+            state = np.random.uniform(-1.0, 1.0, size=(4,)).astype(np.float32)
+            action = int(np.random.randint(0, 3))
+            reward = float(np.random.uniform(-1.0, 1.0))
+            next_state = (state + np.random.normal(0.0, 0.1, size=(4,))).astype(
+                np.float32
+            )
+            replay.add([state, action, reward, next_state])
+
+        before = clone_parameters(agent.q_network)
+        loss = agent.replay(replay, batch_size=32)
+        self.assertIsNotNone(loss)
+        self.assertTrue(parameters_changed(before, agent.q_network))
+
+    def test_ddqn_replay_uses_target_network_for_evaluation(self):
+        config = {
+            "input": 2,
+            "output": 2,
+            "layers": [],
+            "target_network": True,
+            "lr": 0.0,
+            "discount": 0.95,
+            "optimizer": adam_wrapper,
+        }
+        agent = DoubleDQNAgent(config)
+
+        with torch.no_grad():
+            agent.q_network.network[0].weight.copy_(
+                torch.tensor([[2.0, 0.0], [1.0, 0.0]], dtype=torch.float)
+            )
+            agent.q_network.network[0].bias.zero_()
+            agent.target_network.network[0].weight.copy_(
+                torch.tensor([[1.0, 0.0], [3.0, 0.0]], dtype=torch.float)
+            )
+            agent.target_network.network[0].bias.zero_()
+
+        replay = ReplayBuffer(1)
+        state = np.array([1.0, 0.0], dtype=np.float32)
+        replay.add([state, 0, 0.0, state.copy()])
+
+        loss = agent.replay(replay, batch_size=1)
+        self.assertIsNotNone(loss)
+        self.assertAlmostEqual(loss.item(), 1.1025, places=6)
 
     def test_ddpg_train_updates_actor_and_critic(self):
         config = {
